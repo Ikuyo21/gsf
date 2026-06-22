@@ -425,6 +425,5 @@ function confirmKick(userId, userName) {
     }
 }
 </script>
-</body>
-</html>
+<?php render_footer(); ?>
 
