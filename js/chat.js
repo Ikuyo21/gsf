@@ -1,14 +1,15 @@
 var GSF = window.GSF || {};
 
 GSF.chat = (function () {
-    var groupId       = null;
-    var baseUrl       = '';
-    var lastId        = 0;
-    var container     = null;
-    var timer         = null;
-    var currentUserId = 0;
-    var mutedUntil    = 0;
-    var isLeader      = false;
+    var groupId        = null;
+    var baseUrl        = '';
+    var lastId         = 0;
+    var container      = null;
+    var timer          = null;
+    var currentUserId  = 0;
+    var mutedUntil     = 0;
+    var isLeader       = false;
+    var activeUploadXHR = null;
 
     /* ───────────────────────────────────────────────── INIT ── */
     function init(gid, base, uid, leader) {
@@ -74,8 +75,6 @@ GSF.chat = (function () {
                 if (e.target === sessionModal) closeSessionModal();
             });
         }
-
-    var activeUploadXHR = null; /* track current upload for cancel */
 
     if (form) {
             form.addEventListener('submit', function (e) {
