@@ -44,7 +44,6 @@ $stmt = $pdo->prepare("SELECT g.*, (SELECT COUNT(*) FROM group_members WHERE gro
 $stmt->execute([$uid]);
 $my_groups = $stmt->fetchAll();
 
-/* ── Upcoming study sessions ── */
 $upcoming_sessions = [];
 try {
     $stmt = $pdo->prepare("
@@ -60,9 +59,8 @@ try {
     ");
     $stmt->execute([$uid]);
     $upcoming_sessions = $stmt->fetchAll();
-} catch (Exception $e) { /* table may not exist yet */ }
+} catch (Exception $e) {}
 
-/* Tag sessions starting within 15 min */
 $now_ts = time();
 foreach ($upcoming_sessions as &$s) {
     $sess_ts      = strtotime($s['session_date'] . ' ' . $s['session_time']);
@@ -84,7 +82,7 @@ render_nav();
 </div>
 <div class="sidebar_overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('open')"></div>
 
-<!-- Session notification banner (starting soon) -->
+
 <?php foreach ($upcoming_sessions as $s): if ($s['_soon'] || $s['_started']): ?>
 <div class="session_notify_banner <?= $s['_v_soon'] || $s['_started'] ? 'urgent' : '' ?>" id="notify_banner_<?= (int)$s['id'] ?>">
     <div class="snb_inner">
@@ -143,13 +141,13 @@ render_nav();
             $sess_dt  = new DateTime($s['session_date'] . ' ' . $s['session_time']);
             $diff_min = ($sess_dt->getTimestamp() - $now_ts) / 60;
         ?>
-        <div class="dash_session_card<?= $s['_soon'] || $s['_started'] ? ' dash_sc_soon' : '' ?>">
+        <div class="dash_session_card<?= $s['_soon'] || $s['_started'] ? ' dash_sc_soon' : '' ?>" data-session-ts="<?= strtotime($s['session_date'] . ' ' . $s['session_time']) * 1000 ?>">
             <?php if ($s['_started']): ?>
-            <div class="dsc_badge badge_live">● Live Now</div>
+            <div class="dsc_badge badge_live"> Live Now</div>
             <?php elseif ($s['_v_soon']): ?>
-            <div class="dsc_badge badge_vsoon">⚡ Starts in &lt; 5 min</div>
+            <div class="dsc_badge badge_vsoon"> Starts in &lt; 5 min</div>
             <?php elseif ($s['_soon']): ?>
-            <div class="dsc_badge badge_soon">⏰ Starting Soon</div>
+            <div class="dsc_badge badge_soon"> Starting Soon</div>
             <?php endif; ?>
 
             <div class="dsc_header">
@@ -233,4 +231,38 @@ render_nav();
     </div>
     <?php endif; ?>
 </main>
+<script>
+(function () {
+    var PULSE_WINDOW = 60000;
+    var checked = {};
+
+    function checkSessions() {
+        var now = Date.now();
+        var cards = document.querySelectorAll('.dash_session_card[data-session-ts]');
+        cards.forEach(function (card) {
+            var ts = parseInt(card.dataset.sessionTs);
+            if (!ts || card.classList.contains('fading_out')) return;
+
+            var diff = now - ts;
+
+            if (diff >= 0 && diff < PULSE_WINDOW) {
+                if (!card.classList.contains('pulsing')) {
+                    card.classList.add('pulsing');
+                    card.classList.remove('dash_sc_soon');
+                }
+            } else if (diff >= PULSE_WINDOW) {
+                if (!checked[ts]) {
+                    checked[ts] = true;
+                    card.classList.remove('pulsing');
+                    card.classList.add('fading_out');
+                    setTimeout(function () { card.remove(); }, 520);
+                }
+            }
+        });
+    }
+
+    checkSessions();
+    setInterval(checkSessions, 5000);
+})();
+</script>
 <?php render_footer(); ?>

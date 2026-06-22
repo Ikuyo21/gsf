@@ -8,7 +8,6 @@ header('Content-Type: application/json');
 $uid    = current_user_id();
 $method = $_SERVER['REQUEST_METHOD'];
 
-/* ─── GET: list or get ─── */
 if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
 
@@ -50,14 +49,12 @@ if ($method === 'GET') {
     json_response(['error' => 'Unknown action.'], 400);
 }
 
-/* ─── POST: join / leave / create ─── */
 if ($method === 'POST') {
     $raw    = file_get_contents('php://input');
     $data   = json_decode($raw, true) ?? [];
     $action = $data['action'] ?? '';
     $sid    = (int)($data['session_id'] ?? 0);
 
-    /* JOIN */
     if ($action === 'join') {
         if (!$sid) { json_response(['error' => 'Missing session_id.'], 400); }
 
@@ -77,7 +74,6 @@ if ($method === 'POST') {
         json_response(['ok' => true, 'is_joined' => true, 'attendee_count' => (int)$cnt->fetchColumn()]);
     }
 
-    /* LEAVE */
     if ($action === 'leave') {
         if (!$sid) { json_response(['error' => 'Missing session_id.'], 400); }
 
@@ -88,7 +84,6 @@ if ($method === 'POST') {
         json_response(['ok' => true, 'is_joined' => false, 'attendee_count' => (int)$cnt->fetchColumn()]);
     }
 
-    /* CREATE (leader only) */
     if ($action === 'create') {
         $gid      = (int)($data['group_id'] ?? 0);
         $date     = trim($data['date']     ?? '');
@@ -101,7 +96,6 @@ if ($method === 'POST') {
             json_response(['error' => 'Date, time and location are required.'], 400);
         }
 
-        /* validate date format */
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !preg_match('/^\d{2}:\d{2}$/', $time)) {
             json_response(['error' => 'Invalid date or time format.'], 400);
         }
@@ -113,15 +107,12 @@ if ($method === 'POST') {
             json_response(['error' => 'Only the group leader can schedule sessions.'], 403);
         }
 
-        /* Insert session */
         $pdo->prepare('INSERT INTO study_sessions (group_id, creator_id, title, session_date, session_time, location, link) VALUES (?,?,?,?,?,?,?)')
             ->execute([$gid, $uid, $title, $date, $time, $location, $link ?: null]);
         $new_sid = (int)$pdo->lastInsertId();
 
-        /* Leader auto-joins */
         $pdo->prepare('INSERT IGNORE INTO study_session_attendees (session_id, user_id) VALUES (?,?)')->execute([$new_sid, $uid]);
 
-        /* Post chat card */
         $pdo->prepare("INSERT INTO messages (group_id, user_id, content, message_type, session_id) VALUES (?,?,'','study_session',?)")
             ->execute([$gid, $uid, $new_sid]);
         $mid = (int)$pdo->lastInsertId();

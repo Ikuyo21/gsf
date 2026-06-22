@@ -7,36 +7,6 @@ require_admin();
 $base = base_url();
 $tab = $_GET['tab'] ?? 'reports';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'register_student') {
-    $csrf = $_POST['csrf'] ?? '';
-    if (!verify_csrf($csrf)) {
-        set_flash('error', 'Invalid token.');
-    } else {
-        $matric = strtoupper(trim($_POST['matric_id'] ?? ''));
-        $name = trim($_POST['full_name'] ?? '');
-        $program = trim($_POST['program'] ?? '');
-        $password = $_POST['password'] ?? 'gsf12345';
-
-        if (!$matric || !$name) {
-            set_flash('error', 'Matric ID and name are required.');
-        } elseif (!preg_match(get_matric_pattern(), $matric)) {
-            set_flash('error', 'id unknown');
-        } else {
-            $chk = $pdo->prepare('SELECT id FROM users WHERE matric_id = ?');
-            $chk->execute([$matric]);
-            if ($chk->fetch()) {
-                set_flash('error', 'Matric ID already exists.');
-            } else {
-                $hash = password_hash($password, PASSWORD_BCRYPT);
-                $stmt = $pdo->prepare('INSERT INTO users (matric_id, full_name, program, password, role) VALUES (?, ?, ?, ?, ?)');
-                $stmt->execute([$matric, $name, $program ?: null, $hash, 'Student']);
-                set_flash('success', 'Student ' . $matric . ' registered with default password.');
-            }
-        }
-    }
-    header('Location: ' . $base . '/php/admin/?tab=users');
-    exit;
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['approve_user', 'reject_user'], true)) {
     $csrf = $_POST['csrf'] ?? '';
@@ -153,51 +123,7 @@ render_nav();
 
     <?php if ($tab === 'users'): ?>
 
-    <div class="profile_section" style="margin-bottom:20px;">
-        <h3 class="profile_section_title">Register New Student</h3>
-        <form method="POST">
-            <input type="hidden" name="action" value="register_student">
-            <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-            <div class="pref_row">
-                <div class="field_group">
-                    <label class="field_label" for="matric_id">Matric ID *</label>
-                    <input class="field_input" type="text" id="matric_id" name="matric_id" placeholder="e.g. RC24163" style="text-transform:uppercase;" required>
-                </div>
-                <div class="field_group">
-                    <label class="field_label" for="full_name">Full Name *</label>
-                    <input class="field_input" type="text" id="full_name" name="full_name" placeholder="Student full name" required>
-                </div>
-                <div class="field_group">
-                    <label class="field_label" for="program">Program</label>
-                    <select class="field_input" id="program" name="program">
-                        <option value="">-- Select --</option>
-                        <?php foreach ($programs as $p): ?>
-                        <option value="<?= e($p) ?>"><?= e($p) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
-            <div class="field_group">
-                <label class="field_label">Password (default: gsf12345)</label>
-                <input class="field_input" type="text" name="password" value="gsf12345" placeholder="Initial password">
-            </div>
-            <button type="submit" class="btn btn_primary">Register Student</button>
-        </form>
-        <script>
-        (function() {
-            const map = <?= json_encode(get_prefix_program_map()) ?>;
-            const matricInput = document.getElementById('matric_id');
-            const programSelect = document.getElementById('program');
-            if (!matricInput || !programSelect) return;
-            matricInput.addEventListener('input', function() {
-                const prefix = (this.value || '').substring(0, 2).toUpperCase();
-                if (map[prefix]) {
-                    programSelect.value = map[prefix];
-                }
-            });
-        })();
-        </script>
-    </div>
+
 
     <form method="GET" class="search_bar" style="margin-bottom:16px;">
         <input type="hidden" name="tab" value="users">

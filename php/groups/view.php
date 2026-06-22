@@ -8,6 +8,11 @@ $uid  = current_user_id();
 $gid  = (int)($_GET['id'] ?? 0);
 $base = base_url();
 
+$stmt = $pdo->prepare('SELECT bg_type, bg_color FROM users WHERE id = ?');
+$stmt->execute([$uid]);
+$user_bg = $stmt->fetch();
+$bg_color = ($user_bg && $user_bg['bg_type'] === 'color' && $user_bg['bg_color']) ? $user_bg['bg_color'] : null;
+
 update_last_active($pdo, $uid);
 
 if (!$gid) { header('Location: '.$base.'/php/groups/'); exit; }
@@ -45,6 +50,16 @@ if ($is_member) {
 render_head($group['name']);
 render_nav();
 ?>
+
+
+<style>
+<?php if ($bg_color): ?>
+.chat_sidebar { background: <?= e($bg_color) ?> !important; }
+.chat_layout { background: <?= e($bg_color) ?> !important; }
+.chat_main { background: <?= e($bg_color) ?> !important; }
+<?php endif; ?>
+</style>
+
 <style>
 @media (max-width: 768px) {
     .main_content.chat_view_main { padding-top: 56px !important; }
@@ -56,7 +71,7 @@ render_nav();
     <button class="mobile_toggle" onclick="toggleMainSidebar()">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <span class="mobile_topbar_title"># <?= e($group['name']) ?></span>
+    <span class="mobile_topbar_title"><b>Live chat</b></span>
     <button class="mobile_toggle" onclick="toggleChatSidebar()" style="margin-left:auto;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
     </button>
@@ -101,7 +116,7 @@ render_nav();
                 <button type="button" class="chat_sidebar_toggle" onclick="toggleChatSidebar()">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
-                <span class="chat_topbar_name"># <?= e($group['name']) ?></span>
+                <span class="chat_topbar_name"><b>Live chat</b></span>
                 <span class="chat_topbar_members">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                     <?= $member_count ?>
@@ -153,10 +168,14 @@ render_nav();
             <div class="chat_messages" id="chat_messages" data-group-id="<?= $gid ?>">
                 <div class="chat_welcome">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                    <h3>Welcome to #<?= e($group['name']) ?></h3>
+                    <h3>Welcome to <?= e($group['name']) ?></h3>
                     <p>This is the beginning of your conversation.</p>
                 </div>
             </div>
+
+            <button type="button" class="chat_scroll_bottom" id="chat_scroll_bottom" title="Jump to latest">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
 
             <?php if ($is_member): ?>
             <div class="chat_input_area">
@@ -176,7 +195,7 @@ render_nav();
                     </button>
                     <?php endif; ?>
 
-                    <input class="field_input chat_input" type="text" name="content" id="chat_input" placeholder="Message #<?= e($group['name']) ?>" maxlength="2000">
+                    <input class="field_input chat_input" type="text" name="content" id="chat_input"  maxlength="2000">
                     <button type="submit" class="chat_send_btn">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     </button>
@@ -305,16 +324,18 @@ render_nav();
             </div>
             <div class="field_group">
                 <label class="field_label">Location <span class="field_req">*</span></label>
-                <input type="text" id="ss_location" class="field_input" placeholder="Library Room 3, Zoom, Café, etc." required maxlength="500">
+                <input type="text" id="ss_location" class="field_input" placeholder="Library Room 3, Zoom, etc." required maxlength="500">
             </div>
             <div class="field_group">
                 <label class="field_label">Meeting Link <span class="field_optional">(optional)</span></label>
                 <input type="url" id="ss_link" class="field_input" placeholder="https://zoom.us/j/...">
             </div>
             <div class="ss_form_actions">
-                <button type="button" class="btn btn_ghost" onclick="document.getElementById('study_session_modal').classList.remove('open')">Cancel</button>
-                <button type="submit" class="btn btn_primary ss_send_btn">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <button type="button" class="ss_cancel_btn" onclick="document.getElementById('study_session_modal').classList.remove('open')">
+                    Cancel
+                </button>
+                <button type="submit" class="ss_send_btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     Send Invitation
                 </button>
             </div>

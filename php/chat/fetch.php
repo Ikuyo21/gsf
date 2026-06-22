@@ -32,7 +32,6 @@ if ($after === 0) { $messages = array_reverse($messages); }
 
 $base = base_url();
 
-/* Session cache to avoid repeat queries */
 $session_cache = [];
 
 foreach ($messages as &$m) {
@@ -43,7 +42,6 @@ foreach ($messages as &$m) {
         $m['attachment_url'] = $base.'/uploads/chat_files/'.$m['attachment'];
     }
 
-    /* Study session card data */
     if ($m['message_type'] === 'study_session' && $m['session_id']) {
         $sid = (int)$m['session_id'];
 

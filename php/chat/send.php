@@ -37,7 +37,6 @@ if ($is_multipart && !empty($_FILES['attachment']['name'])) {
     $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     $mime = $file['type'] ?? '';
 
-    /* ── format restrictions ── */
     $is_video = str_starts_with($mime, 'video/') || $ext === 'mp4';
     $is_audio = str_starts_with($mime, 'audio/') || $ext === 'mp3';
 
@@ -48,17 +47,19 @@ if ($is_multipart && !empty($_FILES['attachment']['name'])) {
         json_response(['error' => 'Only .mp3 audio files are allowed.', 'format_error' => true], 422);
     }
 
-    /* ── size limit: 20 MB for all file types ── */
     $max_size = 20971520;
 
     $allowed = ['jpg','jpeg','png','gif','webp','pdf','doc','docx','txt','zip','rar','pptx','xlsx','csv','jfif','mp4','mp3'];
-    if (in_array($ext, $allowed) && $file['size'] <= $max_size) {
-        $attachment      = $uid.'_'.time().'_'.bin2hex(random_bytes(4)).'.'.$ext;
-        $attachment_name = $file['name'];
-        move_uploaded_file($file['tmp_name'], __DIR__.'/../../uploads/chat_files/'.$attachment);
-    } else {
-        json_response(['error' => 'File type not allowed or file too large.'], 422);
+    if (!in_array($ext, $allowed)) {
+        json_response(['error' => 'File type not supported.', 'format_error' => true], 422);
     }
+    if ($file['size'] > $max_size) {
+        $type_label = $is_video ? 'Video file' : ($is_audio ? 'Audio file' : 'File');
+        json_response(['error' => $type_label . ' exceeds the 20 MB limit.', 'format_error' => true], 422);
+    }
+    $attachment      = $uid.'_'.time().'_'.bin2hex(random_bytes(4)).'.'.$ext;
+    $attachment_name = $file['name'];
+    move_uploaded_file($file['tmp_name'], __DIR__.'/../../uploads/chat_files/'.$attachment);
 }
 
 if (!$content && !$attachment) { json_response(['error' => 'Empty message.'], 400); }

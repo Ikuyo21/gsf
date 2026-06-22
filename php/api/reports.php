@@ -15,7 +15,7 @@ if (!verify_csrf($csrf)) {
 }
 
 if ($action === 'create') {
-    require_login(); // Allow both Student and Admin to report
+    require_login(); 
     $target = (int) ($_POST['user_id'] ?? 0);
     $reported_matric = trim($_POST['reported_matric'] ?? '');
     $reason = trim($_POST['reason'] ?? '');

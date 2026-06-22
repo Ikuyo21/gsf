@@ -152,7 +152,7 @@ render_nav();
                         </div>
                         <div class="file_upload_text">
                             <span class="file_upload_label">Choose image</span>
-                            <span class="file_upload_hint">PNG, JPG up to 5MB</span>
+                            <span class="file_upload_hint">PNG, JPG, GIF, WebP up to 5MB</span>
                         </div>
                         <img class="file_upload_preview" alt="">
                         <input type="file" name="report_image" accept="image/*">

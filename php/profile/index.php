@@ -29,7 +29,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($ext, $allowed_img_ext)) {
                 $error = 'Avatar image format not supported. Please try another format (JPG, JPEG, PNG, GIF, or WEBP).';
                 $invalid_format = true;
-            } elseif ($_FILES['avatar']['size'] <= 5242880) {
+            } elseif ($_FILES['avatar']['size'] > 5242880) {
+                $error = 'Avatar image exceeds the 5 MB limit. Please choose a smaller file.';
+                $invalid_format = true;
+            } else {
                 $avatar_name = $uid . '_' . time() . '.' . $ext;
                 move_uploaded_file($_FILES['avatar']['tmp_name'], __DIR__ . '/../../uploads/avatars/' . $avatar_name);
             }
@@ -41,7 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($ext, $allowed_img_ext)) {
                 $error = 'Banner image format not supported. Please try another format (JPG, JPEG, PNG, GIF, or WEBP).';
                 $invalid_format = true;
-            } elseif ($_FILES['banner']['size'] <= 5242880) {
+            } elseif ($_FILES['banner']['size'] > 5242880) {
+                $error = 'Banner image exceeds the 5 MB limit. Please choose a smaller file.';
+                $invalid_format = true;
+            } else {
                 $banner_name = $uid . '_banner_' . time() . '.' . $ext;
                 move_uploaded_file($_FILES['banner']['tmp_name'], __DIR__ . '/../../uploads/banners/' . $banner_name);
             }
@@ -51,13 +57,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare('UPDATE users SET bio = ?, avatar = ?, banner = ? WHERE id = ?');
             $stmt->execute([$bio ?: null, $avatar_name, $banner_name, $uid]);
 
-            if ($new_pass && strlen($new_pass) >= 6) {
-                $hash = password_hash($new_pass, PASSWORD_BCRYPT);
-                $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')->execute([$hash, $uid]);
+            if ($new_pass) {
+                if (strlen($new_pass) < 6) {
+                    $error = 'Password must be at least 6 characters.';
+                } else {
+                    $hash = password_hash($new_pass, PASSWORD_BCRYPT);
+                    $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')->execute([$hash, $uid]);
+                }
             }
 
             $_SESSION['user_avatar'] = $avatar_name ?? '';
-            $success = 'Profile updated.';
+            if (!$error) $success = 'Profile updated.';
 
             $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
             $stmt->execute([$uid]);
@@ -109,7 +119,7 @@ $groups = $stmt->fetchAll();
 
 $banner = banner_url($user['banner']);
 
-$bg_swatches = ['#f0f2f5','#1a1a2e','#16213e','#0f3460','#533483','#2c3e50','#1b4332','#3c1642','#2d2d2d','#f5e6cc','#fce4ec','#e8f5e9','#fff3e0','#e3f2fd','#f3e5f5','#fffde7'];
+$bg_swatches = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#E6E6FA', '#F5F5DC', '#FFE4E1', '#FFF0F5', '#F0F8FF', '#F5FFFA', '#FFFACD', '#FFEFD5', '#FFE4C4', '#FFDAB9', '#FFE4B5', '#FAF0E6', '#FFF5EE', '#FFF8DC', '#F0FFF0', '#F5F5F5', '#F8F8FF', '#FFFAFA', '#F0FFFF', '#E0FFFF', '#D8BFD8', '#DDA0DD', '#FFC0CB', '#FFB6C1', '#E2F0CB', '#FADADD', '#C1E1C1', '#B0E0E6', '#F4C2C2', '#DCD0FF', '#FFD1DC', '#E0D2B4', '#C6E2FF', '#F8C8DC', '#DAF7A6'];
 
 render_head('Profile');
 render_nav();
@@ -164,7 +174,7 @@ render_nav();
                         </div>
                         <div class="file_upload_text">
                             <span class="file_upload_label">Change avatar</span>
-                            <span class="file_upload_hint">PNG, JPG up to 5MB</span>
+                            <span class="file_upload_hint">JPG, JPEG, PNG, GIF, or WEBP only. Up to 5MB</span>
                         </div>
                         <img class="file_upload_preview" alt="">
                         <input type="file" name="avatar" accept="image/*">
@@ -178,7 +188,7 @@ render_nav();
                         </div>
                         <div class="file_upload_text">
                             <span class="file_upload_label">Change banner</span>
-                            <span class="file_upload_hint">PNG, JPG up to 5MB</span>
+                            <span class="file_upload_hint">JPG, JPEG, PNG, GIF, or WEBP only. Up to 5MB</span>
                         </div>
                         <img class="file_upload_preview" alt="">
                         <input type="file" name="banner" accept="image/*">
@@ -267,10 +277,10 @@ render_nav();
                     </label>
                     <?php endforeach; ?>
                 </div>
-                <div class="color_sync_group" style="margin-top:10px;">
-                    <input type="color" class="color_sync_picker" value="<?= e($user['bg_color'] ?? '#f0f2f5') ?>" onchange="this.nextElementSibling.value=this.value;document.querySelector('input[name=bg_color]:checked')&&(document.querySelector('input[name=bg_color]:checked').checked=false);">
-                    <input type="text" class="color_hex_input color_sync_hex" value="<?= e($user['bg_color'] ?? '#f0f2f5') ?>" maxlength="7" spellcheck="false" onchange="this.previousElementSibling.value=this.value;">
-                </div>
+<div class="color_sync_group" style="margin-top:10px;display:none;">
+    <input type="color" class="color_sync_picker" value="<?= e($user['bg_color'] ?? '#f0f2f5') ?>" onchange="this.nextElementSibling.value=this.value;document.querySelector('input[name=bg_color]:checked')&&(document.querySelector('input[name=bg_color]:checked').checked=false);">
+    <input type="text" class="color_hex_input color_sync_hex" value="<?= e($user['bg_color'] ?? '#f0f2f5') ?>" maxlength="7" spellcheck="false" onchange="this.previousElementSibling.value=this.value;">
+</div>
             </div>
 
             <button type="submit" class="btn btn_primary" style="margin-top:8px;">Save Background</button>
@@ -360,6 +370,93 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+
+    var bgSwatches = document.querySelectorAll('input[name="bg_color"]');
+    bgSwatches.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            var color = this.value;
+            var main = document.querySelector('.main_content');
+            if (main) main.style.background = color;
+        });
+    });
+
+    var MAX_IMG_SIZE = 5 * 1024 * 1024;
+
+    function showFieldError(input, msg) {
+        var wrap = input.closest('.file_upload') || input.closest('.field_group');
+        if (!wrap) return;
+        var existing = wrap.parentElement.querySelector('.field_error_inline');
+        if (existing) existing.remove();
+        var el = document.createElement('div');
+        el.className = 'field_error_inline';
+        el.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ' + msg;
+        wrap.parentElement.appendChild(el);
+    }
+
+    function clearFieldError(input) {
+        var wrap = input.closest('.file_upload') || input.closest('.field_group');
+        if (!wrap) return;
+        var existing = wrap.parentElement.querySelector('.field_error_inline');
+        if (existing) existing.remove();
+    }
+
+    var avatarInput = document.querySelector('input[name="avatar"]');
+    var bannerInput = document.querySelector('input[name="banner"]');
+
+    if (avatarInput) {
+        avatarInput.addEventListener('change', function () {
+            clearFieldError(avatarInput);
+            if (avatarInput.files && avatarInput.files[0] && avatarInput.files[0].size > MAX_IMG_SIZE) {
+                showFieldError(avatarInput, 'Avatar exceeds the 5 MB limit.');
+                avatarInput.value = '';
+            }
+        });
+    }
+
+    if (bannerInput) {
+        bannerInput.addEventListener('change', function () {
+            clearFieldError(bannerInput);
+            if (bannerInput.files && bannerInput.files[0] && bannerInput.files[0].size > MAX_IMG_SIZE) {
+                showFieldError(bannerInput, 'Banner exceeds the 5 MB limit.');
+                bannerInput.value = '';
+            }
+        });
+    }
+
+    var passInput = document.querySelector('input[name="new_password"]');
+    if (passInput) {
+        passInput.addEventListener('input', function () {
+            clearFieldError(passInput);
+            if (passInput.value.length > 0 && passInput.value.length < 6) {
+                showFieldError(passInput, 'Password must be at least 6 characters.');
+            }
+        });
+
+        var profileForm = passInput.closest('form');
+        if (profileForm) {
+            profileForm.addEventListener('submit', function (e) {
+                if (passInput.value.length > 0 && passInput.value.length < 6) {
+                    e.preventDefault();
+                    clearFieldError(passInput);
+                    showFieldError(passInput, 'Password must be at least 6 characters.');
+                    passInput.focus();
+                }
+
+                if (avatarInput && avatarInput.files && avatarInput.files[0] && avatarInput.files[0].size > MAX_IMG_SIZE) {
+                    e.preventDefault();
+                    clearFieldError(avatarInput);
+                    showFieldError(avatarInput, 'Avatar exceeds the 5 MB limit.');
+                }
+
+                if (bannerInput && bannerInput.files && bannerInput.files[0] && bannerInput.files[0].size > MAX_IMG_SIZE) {
+                    e.preventDefault();
+                    clearFieldError(bannerInput);
+                    showFieldError(bannerInput, 'Banner exceeds the 5 MB limit.');
+                }
+            });
+        }
+    }
 });
 </script>
 <?php render_footer(); ?>
