@@ -161,3 +161,34 @@ INSERT IGNORE INTO subjects (subject_code, subject_name, program, created_by) VA
 INSERT IGNORE INTO bad_words (word, added_by) VALUES
 ('bodoh',1),('babi',1),('celaka',1),('sial',1),('gila',1),
 ('stupid',1),('bitch',1),('pukimak',1),('kontol',1),('lancau',1);
+-- ============================================================
+-- MIGRATION: Study Sessions + Media Messages (mp4/mp3)
+-- ============================================================
+
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_type ENUM('text','study_session') DEFAULT 'text' AFTER content;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS session_id INT NULL AFTER message_type;
+
+CREATE TABLE IF NOT EXISTS study_sessions (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    group_id     INT NOT NULL,
+    creator_id   INT NOT NULL,
+    title        VARCHAR(200) NOT NULL DEFAULT 'Study Session',
+    session_date DATE NOT NULL,
+    session_time TIME NOT NULL,
+    location     VARCHAR(500) NOT NULL,
+    link         VARCHAR(500),
+    message_id   INT,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id)   REFERENCES groups_(id) ON DELETE CASCADE,
+    FOREIGN KEY (creator_id) REFERENCES users(id)   ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS study_session_attendees (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    session_id INT NOT NULL,
+    user_id    INT NOT NULL,
+    joined_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_session_attendee (session_id, user_id),
+    FOREIGN KEY (session_id) REFERENCES study_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES users(id)          ON DELETE CASCADE
+);
