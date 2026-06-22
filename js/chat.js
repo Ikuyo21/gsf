@@ -75,7 +75,9 @@ GSF.chat = (function () {
             });
         }
 
-        if (form) {
+    var activeUploadXHR = null; /* track current upload for cancel */
+
+    if (form) {
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
 
@@ -89,27 +91,74 @@ GSF.chat = (function () {
                 var content = input.value.trim();
 
                 if (fileInput && fileInput.files && fileInput.files[0]) {
+                    var file = fileInput.files[0];
+                    var ext  = file.name.split('.').pop().toLowerCase();
+                    var needsProgress = (ext === 'mp4' || ext === 'mp3');
+
                     var formData = new FormData();
                     formData.append('group_id',  groupId);
                     formData.append('content',   content);
-                    formData.append('attachment', fileInput.files[0]);
+                    formData.append('attachment', file);
 
                     input.value = '';
                     fileInput.value = '';
                     clearFilePreview();
 
-                    fetch(baseUrl + '/php/chat/send.php', { method: 'POST', body: formData })
-                        .then(function (r) { return r.json(); })
-                        .then(function (data) {
-                            if (data.format_error) {
-                                showFormatError(data.error);
-                            } else if (data.muted) {
-                                mutedUntil = Date.now() + (data.muted_seconds * 1000);
-                                showMuteNotice(data.error);
-                            } else {
-                                poll();
+                    if (needsProgress) {
+                        showUploadProgress(file.name);
+                        var xhr = new XMLHttpRequest();
+                        activeUploadXHR = xhr;
+
+                        xhr.upload.addEventListener('progress', function (ev) {
+                            if (ev.lengthComputable) {
+                                var pct = Math.round((ev.loaded / ev.total) * 100);
+                                updateUploadProgress(pct);
                             }
                         });
+
+                        xhr.addEventListener('load', function () {
+                            activeUploadXHR = null;
+                            hideUploadProgress();
+                            try {
+                                var data = JSON.parse(xhr.responseText);
+                                if (data.format_error) {
+                                    showFormatError(data.error);
+                                } else if (data.muted) {
+                                    mutedUntil = Date.now() + (data.muted_seconds * 1000);
+                                    showMuteNotice(data.error);
+                                } else {
+                                    poll();
+                                }
+                            } catch (_) { poll(); }
+                        });
+
+                        xhr.addEventListener('error', function () {
+                            activeUploadXHR = null;
+                            hideUploadProgress();
+                            showFormatError('Upload failed. Please try again.');
+                        });
+
+                        xhr.addEventListener('abort', function () {
+                            activeUploadXHR = null;
+                            hideUploadProgress();
+                        });
+
+                        xhr.open('POST', baseUrl + '/php/chat/send.php');
+                        xhr.send(formData);
+                    } else {
+                        fetch(baseUrl + '/php/chat/send.php', { method: 'POST', body: formData })
+                            .then(function (r) { return r.json(); })
+                            .then(function (data) {
+                                if (data.format_error) {
+                                    showFormatError(data.error);
+                                } else if (data.muted) {
+                                    mutedUntil = Date.now() + (data.muted_seconds * 1000);
+                                    showMuteNotice(data.error);
+                                } else {
+                                    poll();
+                                }
+                            });
+                    }
 
                 } else if (content) {
                     input.value = '';
@@ -132,6 +181,8 @@ GSF.chat = (function () {
     }
 
     /* ────────────────────────────────────────── FILE VALIDATE ── */
+    var MAX_UPLOAD_SIZE = 20 * 1024 * 1024; /* 20 MB */
+
     function validateFile(file) {
         var ext  = file.name.split('.').pop().toLowerCase();
         var mime = file.type || '';
@@ -143,7 +194,51 @@ GSF.chat = (function () {
 
         var allowed = ['jpg','jpeg','png','gif','webp','pdf','doc','docx','txt','zip','rar','pptx','xlsx','csv','jfif','mp4','mp3'];
         if (!allowed.includes(ext)) return 'File type not supported.';
+        if (file.size > MAX_UPLOAD_SIZE) return 'File exceeds 20 MB limit.';
         return null;
+    }
+
+    /* ─────────────────────────────────── UPLOAD PROGRESS POPUP ── */
+    function showUploadProgress(fileName) {
+        hideUploadProgress();
+        var overlay = document.createElement('div');
+        overlay.className = 'upload_progress_overlay';
+        overlay.id = 'upload_progress_overlay';
+        overlay.innerHTML =
+            '<div class="upload_progress_popup">' +
+                '<div class="upload_progress_header">' +
+                    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
+                    '<span>Uploading file</span>' +
+                '</div>' +
+                '<div class="upload_progress_filename">' + escapeHtml(fileName) + '</div>' +
+                '<div class="upload_progress_track"><div class="upload_progress_fill" id="upload_progress_fill"></div></div>' +
+                '<div class="upload_progress_pct" id="upload_progress_pct">0%</div>' +
+                '<button type="button" class="upload_progress_cancel" id="upload_cancel_btn">Cancel</button>' +
+            '</div>';
+        document.body.appendChild(overlay);
+
+        var cancelBtn = document.getElementById('upload_cancel_btn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function () {
+                if (activeUploadXHR) {
+                    activeUploadXHR.abort();
+                    activeUploadXHR = null;
+                }
+                hideUploadProgress();
+            });
+        }
+    }
+
+    function updateUploadProgress(pct) {
+        var fill = document.getElementById('upload_progress_fill');
+        var text = document.getElementById('upload_progress_pct');
+        if (fill) fill.style.width = pct + '%';
+        if (text) text.textContent = pct + '%';
+    }
+
+    function hideUploadProgress() {
+        var overlay = document.getElementById('upload_progress_overlay');
+        if (overlay) overlay.remove();
     }
 
     function showFormatError(msg) {
@@ -314,25 +409,12 @@ GSF.chat = (function () {
 
     /* ──────────────────────────────────────── AUDIO PLAYER ── */
     function buildAudioPlayer(url, name) {
-        var barHeights = [5,8,13,18,24,28,32,34,28,34,32,30,28,24,20,17,13,9,7,5];
-        var bars = '';
-        for (var i = 0; i < barHeights.length; i++) {
-            bars += '<div class="cap_bar" style="--bh:' + barHeights[i] + 'px"></div>';
-        }
         return '<div class="chat_audio_player" data-src="' + escapeHtml(url) + '">' +
-            '<span class="cap_star cap_star_1">✦</span>' +
-            '<span class="cap_star cap_star_2">✧</span>' +
-            '<span class="cap_star cap_star_3">✦</span>' +
-            '<div class="cap_pill">' +
-                '<button class="cap_play_btn" type="button" aria-label="Play">' +
-                    '<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg>' +
-                '</button>' +
-                '<div class="cap_waveform">' + bars + '</div>' +
-                '<span class="cap_timer">0:00</span>' +
-                '<button class="cap_vol_btn" type="button" aria-label="Mute">' +
-                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>' +
-                '</button>' +
-            '</div>' +
+            '<button class="cap_play_btn" type="button" aria-label="Play">' +
+                '<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg>' +
+            '</button>' +
+            '<div class="cap_waveform_bar"><div class="cap_waveform_fill"></div></div>' +
+            '<span class="cap_timer">0:00</span>' +
         '</div>';
     }
 
@@ -356,9 +438,9 @@ GSF.chat = (function () {
         var audio    = new Audio(src);
         var playBtn  = el.querySelector('.cap_play_btn');
         var timerEl  = el.querySelector('.cap_timer');
-        var volBtn   = el.querySelector('.cap_vol_btn');
+        var barFill  = el.querySelector('.cap_waveform_fill');
+        var bar      = el.querySelector('.cap_waveform_bar');
         var playing  = false;
-        var muted    = false;
 
         function fmtTime(s) {
             if (isNaN(s) || s === Infinity) return '0:00';
@@ -372,6 +454,9 @@ GSF.chat = (function () {
 
         audio.addEventListener('timeupdate', function () {
             timerEl.textContent = fmtTime(audio.currentTime);
+            if (barFill && audio.duration) {
+                barFill.style.width = (audio.currentTime / audio.duration * 100) + '%';
+            }
         });
 
         audio.addEventListener('ended', function () {
@@ -380,6 +465,7 @@ GSF.chat = (function () {
             playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
             timerEl.textContent = fmtTime(audio.duration);
             audio.currentTime = 0;
+            if (barFill) barFill.style.width = '0%';
         });
 
         playBtn.addEventListener('click', function () {
@@ -407,14 +493,14 @@ GSF.chat = (function () {
             }
         });
 
-        volBtn.addEventListener('click', function () {
-            muted = !muted;
-            audio.muted = muted;
-            el.classList.toggle('cap_muted', muted);
-            volBtn.innerHTML = muted
-                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>'
-                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>';
-        });
+        /* Click on progress bar to seek */
+        if (bar) {
+            bar.addEventListener('click', function (e) {
+                var rect = bar.getBoundingClientRect();
+                var pct  = (e.clientX - rect.left) / rect.width;
+                if (audio.duration) audio.currentTime = pct * audio.duration;
+            });
+        }
 
         /* Store reference so other players can pause it */
         el._audio   = audio;
@@ -435,7 +521,18 @@ GSF.chat = (function () {
             return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
         }
 
-        playBtn.addEventListener('click', function () {
+        /* Play/pause via the overlay button */
+        playBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (video.paused) {
+                video.play().catch(function () {});
+            } else {
+                video.pause();
+            }
+        });
+
+        /* Click on video itself to toggle play/pause */
+        video.addEventListener('click', function () {
             if (video.paused) {
                 video.play().catch(function () {});
             } else {
@@ -472,6 +569,7 @@ GSF.chat = (function () {
         /* Click on progress bar to seek */
         if (progress) {
             progress.addEventListener('click', function (e) {
+                e.stopPropagation();
                 var rect = progress.getBoundingClientRect();
                 var pct  = (e.clientX - rect.left) / rect.width;
                 if (video.duration) video.currentTime = pct * video.duration;
@@ -486,6 +584,7 @@ GSF.chat = (function () {
         var timeStr = dt.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
         var joined  = !!session.is_joined;
         var count   = parseInt(session.attendee_count) || 0;
+        var creatorName = session.creator_name || '';
 
         return '<div class="ssc" data-session-id="' + session.id + '">' +
             '<div class="ssc_head">' +
@@ -495,6 +594,7 @@ GSF.chat = (function () {
                 '<div>' +
                     '<div class="ssc_label">Study Session</div>' +
                     '<div class="ssc_title">' + escapeHtml(session.title || 'Study Session') + '</div>' +
+                    (creatorName ? '<div class="ssc_creator">Scheduled by ' + escapeHtml(creatorName) + '</div>' : '') +
                 '</div>' +
             '</div>' +
             '<div class="ssc_body">' +

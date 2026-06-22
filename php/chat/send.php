@@ -48,10 +48,8 @@ if ($is_multipart && !empty($_FILES['attachment']['name'])) {
         json_response(['error' => 'Only .mp3 audio files are allowed.', 'format_error' => true], 422);
     }
 
-    /* ── size limits: 50 MB for mp4, 15 MB for mp3, 10 MB otherwise ── */
-    $max_size = 10485760;
-    if ($ext === 'mp4') { $max_size = 52428800; }
-    if ($ext === 'mp3') { $max_size = 15728640; }
+    /* ── size limit: 20 MB for all file types ── */
+    $max_size = 20971520;
 
     $allowed = ['jpg','jpeg','png','gif','webp','pdf','doc','docx','txt','zip','rar','pptx','xlsx','csv','jfif','mp4','mp3'];
     if (in_array($ext, $allowed) && $file['size'] <= $max_size) {

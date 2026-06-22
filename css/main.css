@@ -2082,6 +2082,7 @@ body.no-scroll {
     display: block;
     max-height: 180px;
     object-fit: contain;
+    cursor: pointer;
     transition: max-height 420ms cubic-bezier(.22,1,.36,1);
 }
 .chat_video_wrapper.expanded .chat_video {
@@ -2159,125 +2160,66 @@ body.no-scroll {
     font-variant-numeric: tabular-nums;
 }
 
-/* ── Audio Player ─────────────────────────────────────────────── */
+/* ── Audio Player (simplified) ────────────────────────────────── */
 .chat_audio_player {
-    position: relative;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 14px 20px 14px 16px;
-    min-width: 260px;
-    max-width: 340px;
-    background: linear-gradient(135deg, #3B48EE 0%, #5F6EF4 55%, #7B8CF7 100%);
-    border-radius: 16px;
-    overflow: hidden;
-    margin-top: 6px;
-    box-shadow: 0 4px 20px rgba(59,72,238,.35);
-}
-
-/* Stars on the blue background */
-.cap_star {
-    position: absolute;
-    color: rgba(255,255,255,.6);
-    font-size: 12px;
-    pointer-events: none;
-    line-height: 1;
-}
-.cap_star_1 { top:  8px; left:  10px; font-size: 10px; color: rgba(52,211,153,.8); }
-.cap_star_2 { top:  6px; right: 12px; font-size: 14px; color: #93C5FD; }
-.cap_star_3 { bottom: 8px; left: 14px; font-size: 8px; color: #F9A8D4; }
-
-/* The white pill */
-.cap_pill {
-    position: relative;
-    display: flex;
-    align-items: center;
     gap: 10px;
-    background: #fff;
-    border-radius: 50px;
-    padding: 8px 12px 8px 8px;
-    width: 100%;
-    box-shadow: 0 2px 12px rgba(0,0,0,.12);
+    padding: 10px 14px;
+    min-width: 220px;
+    max-width: 300px;
+    background: var(--primary-light);
+    border-radius: 24px;
+    margin-top: 6px;
+    border: 1.5px solid color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
 /* Play/pause circle */
 .cap_play_btn {
     flex-shrink: 0;
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     border: none;
-    background: linear-gradient(135deg, #3B48EE, #6575F8);
+    background: var(--primary);
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform 150ms var(--ease-spring), box-shadow 150ms ease;
-    box-shadow: 0 2px 8px rgba(59,72,238,.5);
+    transition: transform 150ms var(--ease-spring), filter 150ms ease;
 }
-.cap_play_btn:hover { transform: scale(1.08); box-shadow: 0 4px 14px rgba(59,72,238,.6); }
+.cap_play_btn:hover { transform: scale(1.08); filter: brightness(1.1); }
 .cap_play_btn svg { display: block; }
 
-/* Waveform */
-.cap_waveform {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    height: 34px;
+/* Progress bar */
+.cap_waveform_bar {
     flex: 1;
-    overflow: hidden;
-}
-.cap_bar {
-    width: 3px;
-    height: var(--bh, 14px);
-    background: #94a3b8;
+    height: 4px;
+    background: color-mix(in srgb, var(--primary) 25%, transparent);
     border-radius: 2px;
-    flex-shrink: 0;
-    transition: background 150ms ease;
+    cursor: pointer;
+    position: relative;
+    min-width: 60px;
 }
-
-/* Animated bars when playing */
-.cap_playing .cap_bar {
-    animation: cap_wave 0.8s ease-in-out infinite alternate;
-    background: linear-gradient(to top, #3B48EE, #818CF8);
-}
-.cap_playing .cap_bar:nth-child(2n)   { animation-delay: .12s; }
-.cap_playing .cap_bar:nth-child(3n)   { animation-delay: .24s; }
-.cap_playing .cap_bar:nth-child(4n)   { animation-delay: .08s; }
-.cap_playing .cap_bar:nth-child(5n)   { animation-delay: .36s; }
-
-@keyframes cap_wave {
-    from { transform: scaleY(.3); }
-    to   { transform: scaleY(1); }
+.cap_waveform_fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 2px;
+    width: 0;
+    transition: width 100ms linear;
 }
 
 /* Timer */
 .cap_timer {
     font-size: 12px;
-    font-weight: 700;
-    color: #475569;
+    font-weight: 600;
+    color: var(--primary-dark);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
     min-width: 28px;
     text-align: right;
 }
-
-/* Volume */
-.cap_vol_btn {
-    flex-shrink: 0;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #64748b;
-    display: flex;
-    align-items: center;
-    padding: 2px;
-    border-radius: 4px;
-    transition: color 150ms ease;
-}
-.cap_vol_btn:hover { color: #3B48EE; }
-.cap_muted .cap_vol_btn { color: #ef4444; }
 
 /* ── Study Session Card ───────────────────────────────────────── */
 .chat_msg_session { width: 100%; }
@@ -2323,6 +2265,12 @@ body.no-scroll {
     font-size: 15px;
     font-weight: 700;
     line-height: 1.2;
+}
+.ssc_creator {
+    font-size: 11.5px;
+    font-weight: 400;
+    opacity: .8;
+    margin-top: 2px;
 }
 
 .ssc_body {
@@ -2608,10 +2556,89 @@ body.no-scroll {
 }
 .snb_close:hover { background: rgba(0,0,0,.1); }
 
+/* ── Upload Progress Popup ────────────────────────────────────── */
+.upload_progress_overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fade_in 200ms ease;
+}
+.upload_progress_popup {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px 32px;
+    width: 340px;
+    max-width: 90vw;
+    box-shadow: 0 12px 40px rgba(0,0,0,.2);
+    text-align: center;
+    animation: scale_in 250ms var(--ease-spring);
+}
+.upload_progress_header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 12px;
+}
+.upload_progress_header svg { color: var(--primary); }
+.upload_progress_filename {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 16px;
+}
+.upload_progress_track {
+    width: 100%;
+    height: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+.upload_progress_fill {
+    height: 100%;
+    width: 0;
+    background: var(--primary);
+    border-radius: 4px;
+    transition: width 200ms ease;
+}
+.upload_progress_pct {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 16px;
+}
+.upload_progress_cancel {
+    padding: 8px 24px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    color: var(--text-light);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.upload_progress_cancel:hover {
+    background: #ffebee;
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
 /* ── Responsive tweaks for mobile audio/video ─────────────────── */
 @media (max-width: 480px) {
-    .chat_audio_player { min-width: 210px; max-width: 100%; }
+    .chat_audio_player { min-width: 180px; max-width: 100%; }
     .chat_video_wrapper { max-width: 100%; }
     .chat_video_wrapper.expanded { max-width: 100%; }
     .ssc { max-width: 100%; }
+    .upload_progress_popup { padding: 24px 20px; }
 }
