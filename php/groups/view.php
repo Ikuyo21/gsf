@@ -61,14 +61,22 @@ render_head($group['name']);
 render_nav();
 ?>
 
+<style>
+@media (max-width: 768px) {
+    .main_content.chat_view_main { padding-top: 56px !important; }
+}
+</style>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
 <div class="mobile_topbar">
-    
     <button class="mobile_toggle" onclick="toggleMainSidebar()">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <span class="mobile_topbar_title"># <?= e($group['name']) ?></span>
+    <button class="mobile_toggle" onclick="toggleChatSidebar()" style="margin-left: auto;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    </button>
 </div>
 
 <div class="sidebar_overlay" onclick="toggleMainSidebar()"></div>
@@ -284,137 +292,66 @@ if ($is_member && !empty($friends_not_in_group)) {
 </div>
 <?php endif; ?>
 
-<script src="<?= $base ?>/js/components.js"></script>
-<script src="<?= $base ?>/js/chat.js"></script>
-<script src="<?= $base ?>/js/app.js"></script>
 <script>
-
+const GSF = {
+    modal: {
+        open: function(id) {
+            document.getElementById(id).classList.add('open');
+        },
+        close: function(id) {
+            document.getElementById(id).classList.remove('open');
+        }
+    },
+    confirm: function(msg, cb) {
+        if (confirm(msg)) cb();
+    }
+};
 
 function toggleMainSidebar() {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar_overlay');
-    const chatSidebar = document.querySelector('.chat_sidebar');
-    const chatOverlay = document.querySelector('.chat_sidebar_overlay');
-
-   
-    if (chatSidebar && chatSidebar.classList.contains('open')) {
-        chatSidebar.classList.remove('open');
-        if (chatOverlay) chatOverlay.classList.remove('open');
-    }
-
-    if (sidebar) sidebar.classList.toggle('open');
-    if (overlay) overlay.classList.toggle('open');
-    updateBodyScroll();
+    document.querySelector('.sidebar').classList.toggle('open');
+    document.querySelector('.sidebar_overlay').classList.toggle('open');
+    document.body.classList.toggle('no-scroll');
 }
 
 function toggleChatSidebar() {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar_overlay');
-    const chatSidebar = document.querySelector('.chat_sidebar');
-    const chatOverlay = document.querySelector('.chat_sidebar_overlay');
-
-   
-    if (sidebar && sidebar.classList.contains('open')) {
-        sidebar.classList.remove('open');
-        if (overlay) overlay.classList.remove('open');
-    }
-
-    if (chatSidebar) chatSidebar.classList.toggle('open');
-    if (chatOverlay) chatOverlay.classList.toggle('open');
-    updateBodyScroll();
+    document.querySelector('.chat_sidebar').classList.toggle('open');
+    document.querySelector('.chat_sidebar_overlay').classList.toggle('open');
 }
 
-function closeAllSidebars() {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar_overlay');
-    const chatSidebar = document.querySelector('.chat_sidebar');
-    const chatOverlay = document.querySelector('.chat_sidebar_overlay');
-
-    if (sidebar) sidebar.classList.remove('open');
-    if (overlay) overlay.classList.remove('open');
-    if (chatSidebar) chatSidebar.classList.remove('open');
-    if (chatOverlay) chatOverlay.classList.remove('open');
-    updateBodyScroll();
-}
-
-function updateBodyScroll() {
-    const sidebar = document.querySelector('.sidebar');
-    const chatSidebar = document.querySelector('.chat_sidebar');
-    const anyOpen = (sidebar && sidebar.classList.contains('open')) || 
-                    (chatSidebar && chatSidebar.classList.contains('open'));
-
-    if (anyOpen) {
-        document.body.classList.add('no-scroll');
-    } else {
-        document.body.classList.remove('no-scroll');
-    }
-}
-
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeAllSidebars();
-});
-
-
-document.addEventListener('click', function(e) {
-    const chatSidebar = document.querySelector('.chat_sidebar');
-    const chatOverlay = document.querySelector('.chat_sidebar_overlay');
-    const chatToggle = document.querySelector('.chat_sidebar_toggle');
-
-    if (chatSidebar && chatSidebar.classList.contains('open')) {
-        const clickedInsideSidebar = chatSidebar.contains(e.target);
-        const clickedToggle = chatToggle && chatToggle.contains(e.target);
-
-        if (!clickedInsideSidebar && !clickedToggle) {
-            chatSidebar.classList.remove('open');
-            if (chatOverlay) chatOverlay.classList.remove('open');
-            updateBodyScroll();
+function filterAddPeople(val) {
+    val = val.toLowerCase();
+    const items = document.querySelectorAll('#add_people_list .add_people_item');
+    items.forEach(item => {
+        const name = item.dataset.name;
+        const matric = item.dataset.matric;
+        if (name.includes(val) || matric.includes(val)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
         }
-    }
-});
-
-
-document.addEventListener('DOMContentLoaded', function() {
-    var el = document.getElementById('chat_messages');
-    if (el) GSF.chat.init(el.dataset.groupId, '<?= $base ?>', <?= $uid ?>);
-
-    var sidebar = document.getElementById('main_sidebar');
-    if (sidebar) {
-        var saved = localStorage.getItem('gsf_sidebar_collapsed');
-        if (saved === '1') {
-            sidebar.classList.add('collapsed');
-            document.body.classList.add('sidebar_is_collapsed');
-            var mc = document.querySelector('.main_content');
-            if (mc) mc.style.marginLeft = 'var(--sidebar-collapsed)';
-        }
-    }
-});
-
-function filterAddPeople(q) {
-    q = q.toLowerCase();
-    document.querySelectorAll('.add_people_item').forEach(function(item) {
-        var name = item.dataset.name || '';
-        var matric = item.dataset.matric || '';
-        item.style.display = (name.indexOf(q) !== -1 || matric.indexOf(q) !== -1) ? '' : 'none';
     });
 }
 
-function filterKickMembers(q) {
-    q = q.toLowerCase();
-    document.querySelectorAll('.kick_member_item').forEach(function(item) {
-        var name = item.dataset.name || '';
-        var matric = item.dataset.matric || '';
-        item.style.display = (name.indexOf(q) !== -1 || matric.indexOf(q) !== -1) ? '' : 'none';
+function filterKickMembers(val) {
+    val = val.toLowerCase();
+    const items = document.querySelectorAll('#kick_member_list .kick_member_item');
+    items.forEach(item => {
+        const name = item.dataset.name;
+        const matric = item.dataset.matric;
+        if (name.includes(val) || matric.includes(val)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
     });
 }
 
-function confirmKick(userId, userName) {
-    GSF.modal.close('kick_member_modal');
-    GSF.confirm('Remove <strong>' + userName + '</strong> from this group?', function() {
-        document.getElementById('kick_user_id').value = userId;
+function confirmKick(id, name) {
+    GSF.confirm('Are you sure you want to kick ' + name + ' from the group?', function() {
+        document.getElementById('kick_user_id').value = id;
         document.getElementById('kick_form').submit();
     });
 }
 </script>
-</body>
-</html>
+
+<?php render_footer(); ?>
