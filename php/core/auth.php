@@ -180,13 +180,28 @@ function filter_bad_words(PDO $pdo, string $text): string {
 function get_programs(): array {
     return [
         'Diploma in Computer Science',
-        'Diploma in Computer Science (Cybersecurity)',
-        'Bachelor of Computer Science (Software Engineering)',
+        'Bachelor of Computer Science',
         'Bachelor of Computer Science (Computer Networking)',
-        'Bachelor of Computer Science (Cybersecurity)',
+        'Bachelor of Computer Science (Software Engineering)',
         'Bachelor of Computer Science (Multimedia)',
-        'Bachelor of Computer Science (Artificial Intelligence)'
+        'Bachelor of Computer Science (Cybersecurity)',
     ];
+}
+
+function get_prefix_program_map(): array {
+    return [
+        'RC' => 'Diploma in Computer Science',
+        'CS' => 'Bachelor of Computer Science',
+        'CN' => 'Bachelor of Computer Science (Computer Networking)',
+        'CE' => 'Bachelor of Computer Science (Software Engineering)',
+        'CM' => 'Bachelor of Computer Science (Multimedia)',
+        'CC' => 'Bachelor of Computer Science (Cybersecurity)',
+    ];
+}
+
+function get_matric_pattern(): string {
+    $prefixes = implode('|', array_keys(get_prefix_program_map()));
+    return '/^(' . $prefixes . ')\d{5}$/';
 }
 
 function is_light_color(string $hex): bool {

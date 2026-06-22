@@ -6,7 +6,7 @@ require_guest();
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $matric = trim($_POST['matric_id'] ?? '');
+    $matric = strtoupper(trim($_POST['matric_id'] ?? ''));
     $pass = $_POST['password'] ?? '';
 
     if (!$matric || !$pass) {
@@ -18,6 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$user || !password_verify($pass, $user['password'])) {
             $error = 'Invalid matric ID or password.';
+        } elseif ((int) ($user['approved'] ?? 1) === 0) {
+            $error = 'Your account is pending admin approval. Please wait until an admin reviews your registration.';
         } elseif ($user['banned_until'] && strtotime($user['banned_until']) > time()) {
             $remaining = (new DateTime())->diff(new DateTime($user['banned_until']));
             $error = 'Your account is banned for ' . $remaining->days . ' day(s). Reason: ' . ($user['ban_reason'] ?? 'Policy violation');
@@ -65,7 +67,7 @@ $base = base_url();
         <form method="POST">
             <div class="field_group">
                 <label class="field_label" for="matric_id">Matric ID</label>
-                <input class="field_input" type="text" id="matric_id" name="matric_id" placeholder="Enter your matric id" value="<?= e($_POST['matric_id'] ?? '') ?>" required>
+                <input class="field_input" type="text" id="matric_id" name="matric_id" placeholder="Enter your matric id" value="<?= e($_POST['matric_id'] ?? '') ?>" style="text-transform:uppercase;" required>
             </div>
             <div class="field_group">
                 <label class="field_label" for="password">Password</label>
@@ -73,7 +75,7 @@ $base = base_url();
             </div>
             <button type="submit" class="btn btn_primary btn_full" style="margin-top:8px;">Sign In</button>
         </form>
-        <p class="auth_footer">Contact your administrator if you don't have an account.</p>
+        <p class="auth_footer">Don't have an account? <a href="<?= $base ?>/php/auth/register.php">Register here</a></p>
         <p class="auth_footer">This website was made specificly for FKOM students</p>
     </div>
 </body>

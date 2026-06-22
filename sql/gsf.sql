@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(100) NOT NULL,
     password VARCHAR(255) NOT NULL,
     role ENUM('Student','Admin') DEFAULT 'Student',
+    approved TINYINT(1) NOT NULL DEFAULT 1,
     program VARCHAR(100),
     bio TEXT,
     avatar VARCHAR(255),
@@ -25,6 +26,10 @@ CREATE TABLE IF NOT EXISTS users (
     muted_until DATETIME,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Safety net: if the users table already existed from an older version
+-- without the approved column, this adds it. Existing rows default to 1 (approved).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS approved TINYINT(1) NOT NULL DEFAULT 1 AFTER role;
 
 CREATE TABLE IF NOT EXISTS subjects (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -125,10 +130,11 @@ INSERT IGNORE INTO users (matric_id, full_name, password, role, program) VALUES
 ('RC24306', 'Muhammad Afiq Azrein', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Diploma in Computer Science'),
 ('RC24984', 'Muhammad Danish aiman bin abdullah', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Diploma in Computer Science'),
 ('RC24308', 'Wan bani adam bin Aiman hakimi', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Diploma in Computer Science'),
-('CI24001', 'Amirul Hakim Razali',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Bachelor of Computer Science (Software Engineering)'),
+('CE24001', 'Amirul Hakim Razali',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Bachelor of Computer Science (Software Engineering)'),
 ('CN24002', 'Nur Izzatie Mohd Yusof','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Bachelor of Computer Science (Computer Networking)'),
-('CS24003', 'Ahmad Firdaus Ismail',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Bachelor of Computer Science (Cybersecurity)'),
-('CM24004', 'Siti Nurhaliza Zakaria','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Bachelor of Computer Science (Multimedia)');
+('CC24003', 'Ahmad Firdaus Ismail',  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Bachelor of Computer Science (Cybersecurity)'),
+('CM24004', 'Siti Nurhaliza Zakaria','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Bachelor of Computer Science (Multimedia)'),
+('CS24005', 'Fatin Aishah Hassan',   '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Student', 'Bachelor of Computer Science');
 
 INSERT IGNORE INTO subjects (subject_code, subject_name, program, created_by) VALUES
 ('DRC1113','Programming Techniques','Diploma in Computer Science',1),

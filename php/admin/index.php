@@ -12,13 +12,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'regis
     if (!verify_csrf($csrf)) {
         set_flash('error', 'Invalid token.');
     } else {
-        $matric = trim($_POST['matric_id'] ?? '');
+        $matric = strtoupper(trim($_POST['matric_id'] ?? ''));
         $name = trim($_POST['full_name'] ?? '');
         $program = trim($_POST['program'] ?? '');
         $password = $_POST['password'] ?? 'gsf12345';
 
         if (!$matric || !$name) {
             set_flash('error', 'Matric ID and name are required.');
+        } elseif (!preg_match(get_matric_pattern(), $matric)) {
+            set_flash('error', 'id unknown');
         } else {
             $chk = $pdo->prepare('SELECT id FROM users WHERE matric_id = ?');
             $chk->execute([$matric]);
@@ -36,13 +38,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'regis
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['approve_user', 'reject_user'], true)) {
+    $csrf = $_POST['csrf'] ?? '';
+    if (!verify_csrf($csrf)) {
+        set_flash('error', 'Invalid token.');
+    } else {
+        $target = (int) ($_POST['user_id'] ?? 0);
+        if ($target <= 0) {
+            set_flash('error', 'Invalid user.');
+        } elseif ($_POST['action'] === 'approve_user') {
+            $stmt = $pdo->prepare('UPDATE users SET approved = 1 WHERE id = ? AND approved = 0 AND role = "Student"');
+            $stmt->execute([$target]);
+            set_flash('success', $stmt->rowCount() ? 'Student approved.' : 'No pending student matched.');
+        } else {
+            $stmt = $pdo->prepare('DELETE FROM users WHERE id = ? AND approved = 0 AND role = "Student"');
+            $stmt->execute([$target]);
+            set_flash('success', $stmt->rowCount() ? 'Registration rejected.' : 'No pending student matched.');
+        }
+    }
+    header('Location: ' . $base . '/php/admin/?tab=pending');
+    exit;
+}
+
 $stmt = $pdo->query("SELECT COUNT(*) FROM reports WHERE status = 'pending'");
 $pending_reports = (int) $stmt->fetchColumn();
 
-$stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'Student'");
+$stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'Student' AND approved = 1");
 $total_users = (int) $stmt->fetchColumn();
 
-$stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'Student' AND banned_until IS NOT NULL AND banned_until > NOW()");
+$stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'Student' AND approved = 0");
+$pending_approvals = (int) $stmt->fetchColumn();
+
+$stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'Student' AND approved = 1 AND banned_until IS NOT NULL AND banned_until > NOW()");
 $banned_users = (int) $stmt->fetchColumn();
 
 $stmt = $pdo->query("SELECT COUNT(*) FROM groups_");
@@ -50,7 +77,7 @@ $total_groups = (int) $stmt->fetchColumn();
 
 if ($tab === 'users') {
     $search = trim($_GET['q'] ?? '');
-    $where = "WHERE u.role = 'Student'";
+    $where = "WHERE u.role = 'Student' AND u.approved = 1";
     $params = [];
     if ($search) {
         $where .= ' AND (u.full_name LIKE ? OR u.matric_id LIKE ?)';
@@ -59,6 +86,9 @@ if ($tab === 'users') {
     $stmt = $pdo->prepare("SELECT u.* FROM users u $where ORDER BY u.full_name ASC LIMIT 100");
     $stmt->execute($params);
     $users = $stmt->fetchAll();
+} elseif ($tab === 'pending') {
+    $stmt = $pdo->query("SELECT * FROM users WHERE role = 'Student' AND approved = 0 ORDER BY created_at ASC LIMIT 200");
+    $pending_users = $stmt->fetchAll();
 } else {
     $stmt = $pdo->prepare("
         SELECT r.*, 
@@ -98,6 +128,10 @@ render_nav();
             <div class="stat_label">Pending Reports</div>
         </div>
         <div class="stat_card">
+            <div class="stat_value color_2"><?= $pending_approvals ?></div>
+            <div class="stat_label">Pending Approvals</div>
+        </div>
+        <div class="stat_card">
             <div class="stat_value color_2"><?= $total_users ?></div>
             <div class="stat_label">Total Students</div>
         </div>
@@ -114,6 +148,7 @@ render_nav();
     <div class="admin_tabs">
         <a href="?tab=reports" class="admin_tab<?= $tab === 'reports' ? ' active' : '' ?>">Reports</a>
         <a href="?tab=users" class="admin_tab<?= $tab === 'users' ? ' active' : '' ?>">Users</a>
+        <a href="?tab=pending" class="admin_tab<?= $tab === 'pending' ? ' active' : '' ?>">Pending<?= $pending_approvals > 0 ? ' (' . $pending_approvals . ')' : '' ?></a>
     </div>
 
     <?php if ($tab === 'users'): ?>
@@ -125,16 +160,16 @@ render_nav();
             <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
             <div class="pref_row">
                 <div class="field_group">
-                    <label class="field_label">Matric ID *</label>
-                    <input class="field_input" type="text" name="matric_id" placeholder="e.g. RC24163" required>
+                    <label class="field_label" for="matric_id">Matric ID *</label>
+                    <input class="field_input" type="text" id="matric_id" name="matric_id" placeholder="e.g. RC24163" style="text-transform:uppercase;" required>
                 </div>
                 <div class="field_group">
-                    <label class="field_label">Full Name *</label>
-                    <input class="field_input" type="text" name="full_name" placeholder="Student full name" required>
+                    <label class="field_label" for="full_name">Full Name *</label>
+                    <input class="field_input" type="text" id="full_name" name="full_name" placeholder="Student full name" required>
                 </div>
                 <div class="field_group">
-                    <label class="field_label">Program</label>
-                    <select class="field_input" name="program">
+                    <label class="field_label" for="program">Program</label>
+                    <select class="field_input" id="program" name="program">
                         <option value="">-- Select --</option>
                         <?php foreach ($programs as $p): ?>
                         <option value="<?= e($p) ?>"><?= e($p) ?></option>
@@ -148,6 +183,20 @@ render_nav();
             </div>
             <button type="submit" class="btn btn_primary">Register Student</button>
         </form>
+        <script>
+        (function() {
+            const map = <?= json_encode(get_prefix_program_map()) ?>;
+            const matricInput = document.getElementById('matric_id');
+            const programSelect = document.getElementById('program');
+            if (!matricInput || !programSelect) return;
+            matricInput.addEventListener('input', function() {
+                const prefix = (this.value || '').substring(0, 2).toUpperCase();
+                if (map[prefix]) {
+                    programSelect.value = map[prefix];
+                }
+            });
+        })();
+        </script>
     </div>
 
     <form method="GET" class="search_bar" style="margin-bottom:16px;">
@@ -201,6 +250,52 @@ render_nav();
                         </form>
                         <button type="button" class="btn btn_danger btn_sm" onclick="GSF.confirm('Ban this user for 3 days?',function(){document.getElementById('ban_form_<?= $u['id'] ?>').submit();})">Ban</button>
                         <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+
+    <?php elseif ($tab === 'pending'): ?>
+
+    <?php if (empty($pending_users)): ?>
+    <div class="empty_state"><h3>No pending registrations</h3><p>Self-registered students will appear here for your approval.</p></div>
+    <?php else: ?>
+    <div class="admin_table_wrap">
+        <table class="admin_table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Matric</th>
+                    <th>Program</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($pending_users as $pu): ?>
+                <tr>
+                    <td><?= e($pu['full_name']) ?></td>
+                    <td><?= e($pu['matric_id']) ?></td>
+                    <td><?= e($pu['program'] ?? '-') ?></td>
+                    <td><?= date('M j, Y H:i', strtotime($pu['created_at'])) ?></td>
+                    <td>
+                        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                            <form method="POST" style="display:inline;">
+                                <input type="hidden" name="action" value="approve_user">
+                                <input type="hidden" name="user_id" value="<?= $pu['id'] ?>">
+                                <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+                                <button type="submit" class="btn btn_primary btn_sm">Approve</button>
+                            </form>
+                            <form method="POST" id="reject_form_<?= $pu['id'] ?>" style="display:inline;">
+                                <input type="hidden" name="action" value="reject_user">
+                                <input type="hidden" name="user_id" value="<?= $pu['id'] ?>">
+                                <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+                            </form>
+                            <button type="button" class="btn btn_danger btn_sm" onclick="GSF.confirm('Reject and delete this registration?',function(){document.getElementById('reject_form_<?= $pu['id'] ?>').submit();})">Reject</button>
+                        </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>

@@ -12,7 +12,7 @@ $order = $sort === 'desc' ? 'DESC' : 'ASC';
 
 if (is_logged_in()) update_last_active($pdo, $uid);
 
-$where = "WHERE u.id != ? AND u.role = 'Student'";
+$where = "WHERE u.id != ? AND u.role = 'Student' AND u.approved = 1";
 $params = [$uid];
 
 if ($search) {
