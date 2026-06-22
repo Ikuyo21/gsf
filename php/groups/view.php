@@ -69,6 +69,9 @@ render_nav();
 <div class="sidebar_overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('open')"></div>
 <main class="main_content chat_view_main" style="transition:margin-left 280ms var(--ease-out);">
     <div class="chat_layout">
+        <!-- ADDED: Chat sidebar overlay for mobile -->
+        <div class="chat_sidebar_overlay" onclick="document.querySelector('.chat_sidebar').classList.remove('open');this.classList.remove('open')"></div>
+        
         <div class="chat_sidebar">
             <div class="chat_sidebar_header">
                 <div>
@@ -99,7 +102,8 @@ render_nav();
         </div>
         <div class="chat_main">
             <div class="chat_topbar">
-                <button type="button" class="chat_sidebar_toggle" onclick="document.querySelector('.chat_sidebar').classList.toggle('open')">
+                <!-- UPDATED: Toggle now also handles overlay -->
+                <button type="button" class="chat_sidebar_toggle" onclick="document.querySelector('.chat_sidebar').classList.toggle('open');document.querySelector('.chat_sidebar_overlay').classList.toggle('open')">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <span class="chat_topbar_name"># <?= e($group['name']) ?></span>
