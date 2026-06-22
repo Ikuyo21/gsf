@@ -60,18 +60,23 @@ if ($is_member) {
 render_head($group['name']);
 render_nav();
 ?>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
 <div class="mobile_topbar">
-    <button class="mobile_toggle" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar_overlay').classList.toggle('open')">
+    
+    <button class="mobile_toggle" onclick="toggleMainSidebar()">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <span class="mobile_topbar_title"># <?= e($group['name']) ?></span>
 </div>
-<div class="sidebar_overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('open')"></div>
+
+<div class="sidebar_overlay" onclick="toggleMainSidebar()"></div>
 <main class="main_content chat_view_main" style="transition:margin-left 280ms var(--ease-out);">
     <div class="chat_layout">
-        <!-- ADDED: Chat sidebar overlay for mobile -->
-        <div class="chat_sidebar_overlay" onclick="document.querySelector('.chat_sidebar').classList.remove('open');this.classList.remove('open')"></div>
         
+        <div class="chat_sidebar_overlay" onclick="toggleChatSidebar()"></div>
+
         <div class="chat_sidebar">
             <div class="chat_sidebar_header">
                 <div>
@@ -102,8 +107,8 @@ render_nav();
         </div>
         <div class="chat_main">
             <div class="chat_topbar">
-                <!-- UPDATED: Toggle now also handles overlay -->
-                <button type="button" class="chat_sidebar_toggle" onclick="document.querySelector('.chat_sidebar').classList.toggle('open');document.querySelector('.chat_sidebar_overlay').classList.toggle('open')">
+                
+                <button type="button" class="chat_sidebar_toggle" onclick="toggleChatSidebar()">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
                 <span class="chat_topbar_name"># <?= e($group['name']) ?></span>
@@ -283,6 +288,92 @@ if ($is_member && !empty($friends_not_in_group)) {
 <script src="<?= $base ?>/js/chat.js"></script>
 <script src="<?= $base ?>/js/app.js"></script>
 <script>
+
+
+function toggleMainSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar_overlay');
+    const chatSidebar = document.querySelector('.chat_sidebar');
+    const chatOverlay = document.querySelector('.chat_sidebar_overlay');
+
+   
+    if (chatSidebar && chatSidebar.classList.contains('open')) {
+        chatSidebar.classList.remove('open');
+        if (chatOverlay) chatOverlay.classList.remove('open');
+    }
+
+    if (sidebar) sidebar.classList.toggle('open');
+    if (overlay) overlay.classList.toggle('open');
+    updateBodyScroll();
+}
+
+function toggleChatSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar_overlay');
+    const chatSidebar = document.querySelector('.chat_sidebar');
+    const chatOverlay = document.querySelector('.chat_sidebar_overlay');
+
+   
+    if (sidebar && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
+    }
+
+    if (chatSidebar) chatSidebar.classList.toggle('open');
+    if (chatOverlay) chatOverlay.classList.toggle('open');
+    updateBodyScroll();
+}
+
+function closeAllSidebars() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar_overlay');
+    const chatSidebar = document.querySelector('.chat_sidebar');
+    const chatOverlay = document.querySelector('.chat_sidebar_overlay');
+
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('open');
+    if (chatSidebar) chatSidebar.classList.remove('open');
+    if (chatOverlay) chatOverlay.classList.remove('open');
+    updateBodyScroll();
+}
+
+function updateBodyScroll() {
+    const sidebar = document.querySelector('.sidebar');
+    const chatSidebar = document.querySelector('.chat_sidebar');
+    const anyOpen = (sidebar && sidebar.classList.contains('open')) || 
+                    (chatSidebar && chatSidebar.classList.contains('open'));
+
+    if (anyOpen) {
+        document.body.classList.add('no-scroll');
+    } else {
+        document.body.classList.remove('no-scroll');
+    }
+}
+
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeAllSidebars();
+});
+
+
+document.addEventListener('click', function(e) {
+    const chatSidebar = document.querySelector('.chat_sidebar');
+    const chatOverlay = document.querySelector('.chat_sidebar_overlay');
+    const chatToggle = document.querySelector('.chat_sidebar_toggle');
+
+    if (chatSidebar && chatSidebar.classList.contains('open')) {
+        const clickedInsideSidebar = chatSidebar.contains(e.target);
+        const clickedToggle = chatToggle && chatToggle.contains(e.target);
+
+        if (!clickedInsideSidebar && !clickedToggle) {
+            chatSidebar.classList.remove('open');
+            if (chatOverlay) chatOverlay.classList.remove('open');
+            updateBodyScroll();
+        }
+    }
+});
+
+
 document.addEventListener('DOMContentLoaded', function() {
     var el = document.getElementById('chat_messages');
     if (el) GSF.chat.init(el.dataset.groupId, '<?= $base ?>', <?= $uid ?>);

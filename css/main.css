@@ -2010,3 +2010,29 @@ body[data-primary-light="1"] .mobile_toggle {
     overflow-y: auto;
     padding: 8px;
 }
+
+/* === MOBILE FIXES === */
+
+/* Lock body scroll when any sidebar is open */
+body.no-scroll {
+    overflow: hidden !important;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    overscroll-behavior: none;
+}
+
+/* Make overlays more robust and clickable */
+.chat_sidebar_overlay,
+.sidebar_overlay {
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure chat sidebar shadow is visible for depth */
+@media (max-width: 768px) {
+    .chat_sidebar.open {
+        box-shadow: 4px 0 24px rgba(0,0,0,.25);
+    }
+}
