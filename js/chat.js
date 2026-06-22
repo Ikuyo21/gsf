@@ -520,11 +520,30 @@ GSF.chat = (function () {
             return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
         }
 
+        function showVideoError(msg) {
+            var existing = wrapper.querySelector('.chat_video_error');
+            if (existing) return;
+            var err = document.createElement('div');
+            err.className = 'chat_video_error';
+            err.textContent = msg;
+            wrapper.appendChild(err);
+            console.error('Video playback error:', msg, 'src:', video.currentSrc || video.src);
+        }
+
+        /* Surface load errors instead of failing silently */
+        video.addEventListener('error', function () {
+            var code = video.error ? video.error.code : 0;
+            var msg  = 'Video failed to load.';
+            if (code === 4) msg = 'Video format not supported or file unreachable.';
+            else if (code === 2) msg = 'Network error loading video.';
+            showVideoError(msg);
+        });
+
         /* Play/pause via the overlay button */
         playBtn.addEventListener('click', function (e) {
             e.stopPropagation();
             if (video.paused) {
-                video.play().catch(function () {});
+                video.play().catch(function (err) { showVideoError('Could not play video: ' + err.message); });
             } else {
                 video.pause();
             }
@@ -533,7 +552,7 @@ GSF.chat = (function () {
         /* Click on video itself to toggle play/pause */
         video.addEventListener('click', function () {
             if (video.paused) {
-                video.play().catch(function () {});
+                video.play().catch(function (err) { showVideoError('Could not play video: ' + err.message); });
             } else {
                 video.pause();
             }
