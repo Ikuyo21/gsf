@@ -67,7 +67,7 @@ $base = base_url();
         <form method="POST">
             <div class="field_group">
                 <label class="field_label" for="matric_id">Matric ID</label>
-                <input class="field_input" type="text" id="matric_id" name="matric_id" placeholder="Enter your matric id" value="<?= e($_POST['matric_id'] ?? '') ?>" style="text-transform:uppercase;" required>
+                <input class="field_input" type="text" id="matric_id" name="matric_id" placeholder="RCXXXXX" value="<?= e($_POST['matric_id'] ?? '') ?>" style="text-transform:uppercase;" required>
             </div>
             <div class="field_group">
                 <label class="field_label" for="password">Password</label>
@@ -76,7 +76,7 @@ $base = base_url();
             <button type="submit" class="btn btn_primary btn_full" style="margin-top:8px;">Sign In</button>
         </form>
         <p class="auth_footer">Don't have an account? <a href="<?= $base ?>/php/auth/register.php">Register here</a></p>
-        <p class="auth_footer">This website was made specificly for FKOM students</p>
+        <p class="auth_footer">This website was made specifically for FKOM students</p>
     </div>
 </body>
 </html>
