@@ -1827,6 +1827,20 @@ body.sidebar_is_collapsed .main_content {
         margin-left: 0;
     }
 
+    .chat_sidebar_overlay {
+    display: none;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,.3);
+    z-index: 70;
+}
+.chat_sidebar_overlay.open {
+    display: block;
+}
+
     .chat_sidebar {
         position: fixed;
         left: 0;

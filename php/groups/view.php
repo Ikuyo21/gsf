@@ -67,7 +67,7 @@ render_nav();
     <span class="mobile_topbar_title"># <?= e($group['name']) ?></span>
 </div>
 <div class="sidebar_overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('open')"></div>
-<main class="main_content" style="padding:0;transition:margin-left 280ms var(--ease-out);">
+<main class="main_content chat_view_main" style="transition:margin-left 280ms var(--ease-out);">
     <div class="chat_layout">
         <div class="chat_sidebar">
             <div class="chat_sidebar_header">
