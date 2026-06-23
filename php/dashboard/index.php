@@ -9,6 +9,28 @@ $base = base_url();
 
 update_last_active($pdo, $uid);
 
+/**
+ * Friendly countdown label, e.g. "Begins in 3 days 2 hours".
+ * Mirrors fmtCountdown() in chat.js so the wording matches everywhere.
+ */
+function ss_countdown_label(int $secs): string {
+    if ($secs < 60) return 'Begins in less than a minute';
+    $days  = intdiv($secs, 86400);
+    $hours = intdiv($secs % 86400, 3600);
+    $mins  = intdiv($secs % 3600, 60);
+    if ($days >= 1) {
+        $out = $days . ' day' . ($days > 1 ? 's' : '');
+        if ($hours > 0) $out .= ' ' . $hours . ' hour' . ($hours > 1 ? 's' : '');
+        return 'Begins in ' . $out;
+    }
+    if ($hours >= 1) {
+        $out = $hours . ' hour' . ($hours > 1 ? 's' : '');
+        if ($mins > 0) $out .= ' ' . $mins . ' min';
+        return 'Begins in ' . $out;
+    }
+    return 'Begins in ' . $mins . ' min';
+}
+
 $stmt = $pdo->prepare('SELECT COUNT(*) FROM group_members WHERE user_id = ?');
 $stmt->execute([$uid]);
 $groups_count = (int) $stmt->fetchColumn();
@@ -53,7 +75,7 @@ try {
         JOIN   study_session_attendees ssa ON ssa.session_id = ss.id
         JOIN   groups_ g ON g.id = ss.group_id
         WHERE  ssa.user_id = ?
-          AND  CONCAT(ss.session_date,' ',ss.session_time) >= NOW()
+          AND  CONCAT(COALESCE(ss.session_end_date, ss.session_date),' ',COALESCE(ss.session_end_time, ss.session_time)) >= NOW()
         ORDER  BY ss.session_date ASC, ss.session_time ASC
         LIMIT  10
     ");
@@ -63,11 +85,15 @@ try {
 
 $now_ts = time();
 foreach ($upcoming_sessions as &$s) {
-    $sess_ts      = strtotime($s['session_date'] . ' ' . $s['session_time']);
-    $diff_min     = ($sess_ts - $now_ts) / 60;
-    $s['_soon']   = $diff_min > 0 && $diff_min <= 15;
-    $s['_v_soon'] = $diff_min > 0 && $diff_min <= 5;
-    $s['_started'] = $diff_min <= 0 && $diff_min >= -120;
+    $start_ts = strtotime($s['session_date'] . ' ' . $s['session_time']);
+    $end_ts   = strtotime(
+        ($s['session_end_date'] ?: $s['session_date']) . ' ' .
+        ($s['session_end_time'] ?: $s['session_time'])
+    );
+    $s['_start_ts'] = $start_ts;
+    $s['_end_ts']   = $end_ts;
+    $s['_live']     = ($now_ts >= $start_ts && $now_ts < $end_ts);
+    $s['_status']   = $s['_live'] ? 'Now in session' : ss_countdown_label($start_ts - $now_ts);
 }
 unset($s);
 
@@ -82,30 +108,6 @@ render_nav();
 </div>
 <div class="sidebar_overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('open')"></div>
 
-
-<?php foreach ($upcoming_sessions as $s): if ($s['_soon'] || $s['_started']): ?>
-<div class="session_notify_banner <?= $s['_v_soon'] || $s['_started'] ? 'urgent' : '' ?>" id="notify_banner_<?= (int)$s['id'] ?>">
-    <div class="snb_inner">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-        <span>
-            <?php if ($s['_started']): ?>
-                <strong>Now happening:</strong> <?= e($s['title']) ?> in <strong><?= e($s['group_name']) ?></strong>
-            <?php elseif ($s['_v_soon']): ?>
-                <strong>Starting very soon!</strong> <?= e($s['title']) ?> — <?= e($s['group_name']) ?>
-            <?php else: ?>
-                <strong>Starting soon:</strong> <?= e($s['title']) ?> in 15 min — <?= e($s['group_name']) ?>
-            <?php endif; ?>
-        </span>
-        <?php if (!empty($s['link'])): ?>
-        <a href="<?= e($s['link']) ?>" target="_blank" class="snb_join_link">Open Meeting</a>
-        <?php endif; ?>
-        <a href="<?= $base ?>/php/groups/view.php?id=<?= (int)$s['gid'] ?>" class="snb_join_link">Go to Group</a>
-        <button onclick="this.closest('.session_notify_banner').remove()" class="snb_close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-    </div>
-</div>
-<?php endif; endforeach; ?>
 
 <main class="main_content">
     <?php render_flash(); ?>
@@ -138,17 +140,12 @@ render_nav();
     <h2 class="section_title">Upcoming Study Sessions</h2>
     <div class="dash_sessions_grid">
         <?php foreach ($upcoming_sessions as $s):
-            $sess_dt  = new DateTime($s['session_date'] . ' ' . $s['session_time']);
-            $diff_min = ($sess_dt->getTimestamp() - $now_ts) / 60;
+            $start_dt    = new DateTime($s['session_date'] . ' ' . $s['session_time']);
+            $end_dt      = new DateTime(($s['session_end_date'] ?: $s['session_date']) . ' ' . ($s['session_end_time'] ?: $s['session_time']));
+            $crosses_day = $start_dt->format('Y-m-d') !== $end_dt->format('Y-m-d');
         ?>
-        <div class="dash_session_card<?= $s['_soon'] || $s['_started'] ? ' dash_sc_soon' : '' ?>" data-session-ts="<?= strtotime($s['session_date'] . ' ' . $s['session_time']) * 1000 ?>">
-            <?php if ($s['_started']): ?>
-            <div class="dsc_badge badge_live"> Live Now</div>
-            <?php elseif ($s['_v_soon']): ?>
-            <div class="dsc_badge badge_vsoon"> Starts in &lt; 5 min</div>
-            <?php elseif ($s['_soon']): ?>
-            <div class="dsc_badge badge_soon"> Starting Soon</div>
-            <?php endif; ?>
+        <div class="dash_session_card<?= $s['_live'] ? ' dash_sc_live' : '' ?>" data-session-ts="<?= $s['_start_ts'] * 1000 ?>" data-session-end-ts="<?= $s['_end_ts'] * 1000 ?>">
+            <div class="dsc_status<?= $s['_live'] ? ' dsc_status_live' : ' dsc_status_upcoming' ?>"><?= e($s['_status']) ?></div>
 
             <div class="dsc_header">
                 <div class="dsc_cal_icon">
@@ -162,7 +159,7 @@ render_nav();
             <div class="dsc_details">
                 <div class="dsc_row">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    <?= e($sess_dt->format('D, M j, Y')) ?> · <?= e($sess_dt->format('g:i A')) ?>
+                    <?= e($start_dt->format('D, M j, Y')) ?> · <?= e($start_dt->format('g:i A')) ?> – <?= e($end_dt->format('g:i A')) ?><?= $crosses_day ? ' (next day)' : '' ?>
                 </div>
                 <div class="dsc_row">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -233,36 +230,66 @@ render_nav();
 </main>
 <script>
 (function () {
-    var PULSE_WINDOW = 60000;
-    var checked = {};
+    // Same wording as chat.js fmtCountdown / the PHP helper.
+    function fmtCountdown(ms) {
+        var secs = Math.floor(ms / 1000);
+        if (secs < 60) return 'Begins in less than a minute';
+        var days  = Math.floor(secs / 86400);
+        var hours = Math.floor((secs % 86400) / 3600);
+        var mins  = Math.floor((secs % 3600) / 60);
+        if (days >= 1) {
+            var d = days + ' day' + (days > 1 ? 's' : '');
+            if (hours > 0) d += ' ' + hours + ' hour' + (hours > 1 ? 's' : '');
+            return 'Begins in ' + d;
+        }
+        if (hours >= 1) {
+            var h = hours + ' hour' + (hours > 1 ? 's' : '');
+            if (mins > 0) h += ' ' + mins + ' min';
+            return 'Begins in ' + h;
+        }
+        return 'Begins in ' + mins + ' min';
+    }
 
-    function checkSessions() {
+    function tick() {
         var now = Date.now();
         var cards = document.querySelectorAll('.dash_session_card[data-session-ts]');
         cards.forEach(function (card) {
-            var ts = parseInt(card.dataset.sessionTs);
-            if (!ts || card.classList.contains('fading_out')) return;
+            if (card.classList.contains('fading_out')) return;
+            var startMs = parseInt(card.dataset.sessionTs);
+            var endMs   = parseInt(card.dataset.sessionEndTs);
+            if (!startMs) return;
+            if (!endMs) endMs = startMs;
 
-            var diff = now - ts;
+            var status = card.querySelector('.dsc_status');
 
-            if (diff >= 0 && diff < PULSE_WINDOW) {
-                if (!card.classList.contains('pulsing')) {
-                    card.classList.add('pulsing');
-                    card.classList.remove('dash_sc_soon');
+            // Ended -> remove it from the dashboard (the record stays; chat greys it out).
+            if (now >= endMs) {
+                card.classList.add('fading_out');
+                setTimeout(function () { card.remove(); }, 520);
+                return;
+            }
+
+            // In session.
+            if (now >= startMs) {
+                card.classList.add('dash_sc_live');
+                if (status) {
+                    status.className = 'dsc_status dsc_status_live';
+                    status.textContent = 'Now in session';
                 }
-            } else if (diff >= PULSE_WINDOW) {
-                if (!checked[ts]) {
-                    checked[ts] = true;
-                    card.classList.remove('pulsing');
-                    card.classList.add('fading_out');
-                    setTimeout(function () { card.remove(); }, 520);
-                }
+                return;
+            }
+
+            // Upcoming -> live countdown.
+            card.classList.remove('dash_sc_live');
+            if (status) {
+                status.className = 'dsc_status dsc_status_upcoming';
+                status.textContent = fmtCountdown(startMs - now);
             }
         });
     }
 
-    checkSessions();
-    setInterval(checkSessions, 5000);
+    tick();
+    setInterval(tick, 1000);
 })();
 </script>
 <?php render_footer(); ?>

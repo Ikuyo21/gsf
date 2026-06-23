@@ -20,7 +20,7 @@ if ($method === 'GET') {
             JOIN   study_session_attendees ssa ON ssa.session_id = ss.id
             JOIN   groups_ g ON g.id = ss.group_id
             WHERE  ssa.user_id = ?
-              AND  CONCAT(ss.session_date,' ',ss.session_time) >= NOW()
+              AND  CONCAT(COALESCE(ss.session_end_date, ss.session_date),' ',COALESCE(ss.session_end_time, ss.session_time)) >= NOW()
             ORDER  BY ss.session_date ASC, ss.session_time ASC
         ");
         $stmt->execute([$uid]);
@@ -87,17 +87,31 @@ if ($method === 'POST') {
     if ($action === 'create') {
         $gid      = (int)($data['group_id'] ?? 0);
         $date     = trim($data['date']     ?? '');
-        $time     = trim($data['time']     ?? '');
+        $time     = trim($data['time']     ?? '');   // start time (HH:MM)
+        $end_time = trim($data['end_time'] ?? '');   // end time (HH:MM), same day unless it rolls past midnight
         $location = trim($data['location'] ?? '');
         $link     = trim($data['link']     ?? '');
         $title    = trim($data['title']    ?? '') ?: 'Study Session';
 
-        if (!$gid || !$date || !$time || !$location) {
-            json_response(['error' => 'Date, time and location are required.'], 400);
+        if (!$gid || !$date || !$time || !$end_time || !$location) {
+            json_response(['error' => 'Date, start time, end time and location are required.'], 400);
         }
 
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !preg_match('/^\d{2}:\d{2}$/', $time)) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+            || !preg_match('/^\d{2}:\d{2}$/', $time)
+            || !preg_match('/^\d{2}:\d{2}$/', $end_time)) {
             json_response(['error' => 'Invalid date or time format.'], 400);
+        }
+
+        if ($end_time === $time) {
+            json_response(['error' => 'End time must be different from the start time.'], 400);
+        }
+
+        // If the end clock-time is not later than the start, the session runs past
+        // midnight, so the end lands on the following calendar day.
+        $end_date = $date;
+        if ($end_time < $time) {
+            $end_date = date('Y-m-d', strtotime($date . ' +1 day'));
         }
 
         $g = $pdo->prepare('SELECT leader_id FROM groups_ WHERE id = ?');
@@ -107,8 +121,8 @@ if ($method === 'POST') {
             json_response(['error' => 'Only the group leader can schedule sessions.'], 403);
         }
 
-        $pdo->prepare('INSERT INTO study_sessions (group_id, creator_id, title, session_date, session_time, location, link) VALUES (?,?,?,?,?,?,?)')
-            ->execute([$gid, $uid, $title, $date, $time, $location, $link ?: null]);
+        $pdo->prepare('INSERT INTO study_sessions (group_id, creator_id, title, session_date, session_time, session_end_date, session_end_time, location, link) VALUES (?,?,?,?,?,?,?,?,?)')
+            ->execute([$gid, $uid, $title, $date, $time, $end_date, $end_time, $location, $link ?: null]);
         $new_sid = (int)$pdo->lastInsertId();
 
         $pdo->prepare('INSERT IGNORE INTO study_session_attendees (session_id, user_id) VALUES (?,?)')->execute([$new_sid, $uid]);

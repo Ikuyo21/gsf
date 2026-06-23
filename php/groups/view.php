@@ -317,11 +317,18 @@ render_nav();
                     <label class="field_label">Date <span class="field_req">*</span></label>
                     <input type="date" id="ss_date" class="field_input" required>
                 </div>
+            </div>
+            <div class="ss_date_row">
                 <div class="field_group">
-                    <label class="field_label">Time <span class="field_req">*</span></label>
+                    <label class="field_label">Start Time <span class="field_req">*</span></label>
                     <input type="time" id="ss_time" class="field_input" required>
                 </div>
+                <div class="field_group">
+                    <label class="field_label">End Time <span class="field_req">*</span></label>
+                    <input type="time" id="ss_end_time" class="field_input" required>
+                </div>
             </div>
+            <p class="ss_time_hint">If the end time is earlier than the start time, the session is treated as ending the next day.</p>
             <div class="field_group">
                 <label class="field_label">Location <span class="field_req">*</span></label>
                 <input type="text" id="ss_location" class="field_input" placeholder="Library Room 3, Zoom, etc." required maxlength="500">

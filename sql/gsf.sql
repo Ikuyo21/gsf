@@ -192,3 +192,16 @@ CREATE TABLE IF NOT EXISTS study_session_attendees (
     FOREIGN KEY (session_id) REFERENCES study_sessions(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)    REFERENCES users(id)          ON DELETE CASCADE
 );
+
+-- ============================================================
+-- MIGRATION: Study Session END time
+-- session_time is the START. We add an end that is stored as its own
+-- date + time so a session may run past midnight (e.g. 23:00 -> 01:00).
+-- ============================================================
+ALTER TABLE study_sessions ADD COLUMN IF NOT EXISTS session_end_date DATE NULL AFTER session_time;
+ALTER TABLE study_sessions ADD COLUMN IF NOT EXISTS session_end_time TIME NULL AFTER session_end_date;
+
+-- Backfill legacy rows that have no end recorded: set end = start so their
+-- behaviour is unchanged (they are considered finished the moment they start).
+UPDATE study_sessions SET session_end_date = session_date WHERE session_end_date IS NULL;
+UPDATE study_sessions SET session_end_time = session_time WHERE session_end_time IS NULL;

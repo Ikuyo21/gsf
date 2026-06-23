@@ -587,23 +587,74 @@ GSF.chat = (function () {
         }
     }
 
-    function isSessionClosed(session) {
-        if (!session || !session.session_date || !session.session_time) return false;
-        var dt = new Date(session.session_date + 'T' + session.session_time);
-        return Date.now() >= dt.getTime();
+    // A session has three states based on its start and end:
+    //   'upcoming' -> now < start        (show a "Begins in ..." countdown)
+    //   'live'     -> start <= now < end  (show "Now in session")
+    //   'ended'    -> now >= end          (grey the card out)
+    function getSessionStart(session) {
+        return new Date(session.session_date + 'T' + session.session_time);
+    }
+    function getSessionEnd(session) {
+        // Fall back to the start if no end was recorded (legacy rows).
+        var d = session.session_end_date || session.session_date;
+        var t = session.session_end_time || session.session_time;
+        return new Date(d + 'T' + t);
+    }
+    function sessionState(startMs, endMs, now) {
+        if (now >= endMs)   return 'ended';
+        if (now >= startMs) return 'live';
+        return 'upcoming';
+    }
+
+    // Human-friendly countdown, e.g. "Begins in 3 days 2 hours".
+    // Kept word-for-word identical to the dashboard so the app reads consistently.
+    function fmtCountdown(ms) {
+        var secs = Math.floor(ms / 1000);
+        if (secs < 60) return 'Begins in less than a minute';
+        var days  = Math.floor(secs / 86400);
+        var hours = Math.floor((secs % 86400) / 3600);
+        var mins  = Math.floor((secs % 3600) / 60);
+        if (days >= 1) {
+            var d = days + ' day' + (days > 1 ? 's' : '');
+            if (hours > 0) d += ' ' + hours + ' hour' + (hours > 1 ? 's' : '');
+            return 'Begins in ' + d;
+        }
+        if (hours >= 1) {
+            var h = hours + ' hour' + (hours > 1 ? 's' : '');
+            if (mins > 0) h += ' ' + mins + ' min';
+            return 'Begins in ' + h;
+        }
+        return 'Begins in ' + mins + ' min';
+    }
+
+    function statusHtml(state, startMs, now) {
+        if (state === 'ended') return '<div class="ssc_status ssc_status_ended">This session has ended</div>';
+        if (state === 'live')  return '<div class="ssc_status ssc_status_live">Now in session</div>';
+        return '<div class="ssc_status ssc_status_upcoming">' + escapeHtml(fmtCountdown(startMs - now)) + '</div>';
     }
 
     function buildStudySessionCard(session) {
-        var dt      = new Date(session.session_date + 'T' + session.session_time);
-        var dateStr = dt.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
-        var timeStr = dt.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+        var start   = getSessionStart(session);
+        var end     = getSessionEnd(session);
+        var startMs = start.getTime();
+        var endMs   = end.getTime();
+        var now     = Date.now();
+        var state   = sessionState(startMs, endMs, now);
+        var ended   = state === 'ended';
+        var live    = state === 'live';
+
+        var dateStr  = start.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+        var startStr = start.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+        var endStr   = end.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+        var crossesDay = end.toDateString() !== start.toDateString();
+        var whenStr = dateStr + ' · ' + startStr + ' – ' + endStr + (crossesDay ? ' (next day)' : '');
+
         var joined  = !!session.is_joined;
         var count   = parseInt(session.attendee_count) || 0;
         var creatorName = session.creator_name || '';
-        var closed  = isSessionClosed(session);
 
         var joinBtnHtml = '';
-        if (closed) {
+        if (ended) {
             joinBtnHtml = '<button type="button" class="ssc_join_btn" disabled>Session Closed</button>';
         } else if (joined) {
             joinBtnHtml = '<button type="button" class="ssc_join_btn joined" ' +
@@ -614,7 +665,7 @@ GSF.chat = (function () {
                 'onclick="GSF.chat.toggleSession(' + session.id + ', this)">Join Session</button>';
         }
 
-        return '<div class="ssc' + (closed ? ' ssc_closed' : '') + '" data-session-id="' + session.id + '" data-session-ts="' + dt.getTime() + '">' +
+        return '<div class="ssc' + (ended ? ' ssc_closed' : '') + (live ? ' ssc_live' : '') + '" data-session-id="' + session.id + '" data-session-ts="' + startMs + '" data-session-end-ts="' + endMs + '">' +
             '<div class="ssc_head">' +
                 '<div class="ssc_head_icon">' +
                     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
@@ -625,10 +676,11 @@ GSF.chat = (function () {
                     (creatorName ? '<div class="ssc_creator">Scheduled by ' + escapeHtml(creatorName) + '</div>' : '') +
                 '</div>' +
             '</div>' +
+            statusHtml(state, startMs, now) +
             '<div class="ssc_body">' +
                 '<div class="ssc_row">' +
                     '<svg class="ssc_ri" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
-                    '<span>' + escapeHtml(dateStr) + ' · ' + escapeHtml(timeStr) + '</span>' +
+                    '<span>' + escapeHtml(whenStr) + '</span>' +
                 '</div>' +
                 '<div class="ssc_row">' +
                     '<svg class="ssc_ri" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
@@ -638,7 +690,6 @@ GSF.chat = (function () {
                     ? '<div class="ssc_row"><svg class="ssc_ri" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><a href="' + escapeHtml(session.link) + '" target="_blank" rel="noopener" class="ssc_link">Join via link</a></div>'
                     : '') +
             '</div>' +
-            (closed ? '<div class="ssc_closed_label">This session has ended</div>' : '') +
             '<div class="ssc_foot">' +
                 '<span class="ssc_att">' +
                     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' +
@@ -649,12 +700,37 @@ GSF.chat = (function () {
         '</div>';
     }
 
-    function checkSessionExpiry() {
+    // Keep every visible session card's status fresh without a refresh:
+    // tick the countdown, flip to "Now in session" at start, grey out at end.
+    function updateSessionStatuses() {
+        if (!container) return;
         var now = Date.now();
-        var cards = container.querySelectorAll('.ssc:not(.ssc_closed)');
+        var cards = container.querySelectorAll('.ssc[data-session-ts]');
         cards.forEach(function (card) {
-            var ts = parseInt(card.dataset.sessionTs);
-            if (ts && now >= ts) {
+            var startMs = parseInt(card.dataset.sessionTs);
+            var endMs   = parseInt(card.dataset.sessionEndTs);
+            if (!startMs) return;
+            if (!endMs) endMs = startMs; // legacy fallback
+
+            var state  = sessionState(startMs, endMs, now);
+            var status = card.querySelector('.ssc_status');
+
+            if (status) {
+                if (state === 'ended') {
+                    status.className = 'ssc_status ssc_status_ended';
+                    status.textContent = 'This session has ended';
+                } else if (state === 'live') {
+                    status.className = 'ssc_status ssc_status_live';
+                    status.textContent = 'Now in session';
+                } else {
+                    status.className = 'ssc_status ssc_status_upcoming';
+                    status.textContent = fmtCountdown(startMs - now);
+                }
+            }
+
+            card.classList.toggle('ssc_live', state === 'live');
+
+            if (state === 'ended' && !card.classList.contains('ssc_closed')) {
                 card.classList.add('ssc_closed');
                 var btn = card.querySelector('.ssc_join_btn');
                 if (btn) {
@@ -663,25 +739,17 @@ GSF.chat = (function () {
                     btn.innerHTML = 'Session Closed';
                     btn.onclick = null;
                 }
-                var foot = card.querySelector('.ssc_foot');
-                if (foot && !card.querySelector('.ssc_closed_label')) {
-                    var label = document.createElement('div');
-                    label.className = 'ssc_closed_label';
-                    label.textContent = 'This session has ended';
-                    card.insertBefore(label, foot);
-                }
             }
         });
     }
 
-    setInterval(function () {
-        if (container) checkSessionExpiry();
-    }, 10000);
+    setInterval(updateSessionStatuses, 1000);
 
     function openSessionModal() {
         var modal = document.getElementById('study_session_modal');
         if (modal) {
             modal.classList.add('open');
+            clearSessionError();
             var dateInput = document.getElementById('ss_date');
             if (dateInput) {
                 var today = new Date().toISOString().split('T')[0];
@@ -693,16 +761,26 @@ GSF.chat = (function () {
     function closeSessionModal() {
         var modal = document.getElementById('study_session_modal');
         if (modal) modal.classList.remove('open');
+        clearSessionError();
     }
 
     function sendStudySession() {
-        var title    = (document.getElementById('ss_title')?.value    || '').trim();
-        var date     = (document.getElementById('ss_date')?.value     || '').trim();
-        var time     = (document.getElementById('ss_time')?.value     || '').trim();
-        var location = (document.getElementById('ss_location')?.value || '').trim();
-        var link     = (document.getElementById('ss_link')?.value     || '').trim();
+        var title    = (document.getElementById('ss_title')?.value     || '').trim();
+        var date     = (document.getElementById('ss_date')?.value      || '').trim();
+        var time     = (document.getElementById('ss_time')?.value      || '').trim();
+        var endTime  = (document.getElementById('ss_end_time')?.value  || '').trim();
+        var location = (document.getElementById('ss_location')?.value  || '').trim();
+        var link     = (document.getElementById('ss_link')?.value      || '').trim();
 
-        if (!date || !time || !location) return;
+        if (!date || !time || !endTime || !location) {
+            showSessionError('Please fill in the date, start time, end time and location.');
+            return;
+        }
+        if (endTime === time) {
+            showSessionError('End time must be different from the start time.');
+            return;
+        }
+        clearSessionError();
 
         var sendBtn = document.querySelector('#study_session_form .ss_send_btn');
         if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending...'; }
@@ -710,7 +788,7 @@ GSF.chat = (function () {
         fetch(baseUrl + '/php/api/study_sessions.php', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ action: 'create', group_id: groupId, title: title, date: date, time: time, location: location, link: link })
+            body:    JSON.stringify({ action: 'create', group_id: groupId, title: title, date: date, time: time, end_time: endTime, location: location, link: link })
         }).then(function (r) { return r.json(); })
           .then(function (data) {
               if (sendBtn) {
@@ -721,6 +799,8 @@ GSF.chat = (function () {
                   closeSessionModal();
                   document.getElementById('study_session_form')?.reset();
                   poll();
+              } else if (data.error) {
+                  showSessionError(data.error);
               }
           })
           .catch(function () {
@@ -729,6 +809,22 @@ GSF.chat = (function () {
                   sendBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Invitation';
               }
           });
+    }
+
+    function showSessionError(msg) {
+        var form = document.getElementById('study_session_form');
+        if (!form) return;
+        var el = form.querySelector('.ss_form_error');
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'ss_form_error';
+            form.insertBefore(el, form.firstChild);
+        }
+        el.textContent = msg;
+    }
+    function clearSessionError() {
+        var el = document.querySelector('#study_session_form .ss_form_error');
+        if (el) el.remove();
     }
 
     function toggleSession(sessionId, btn) {
